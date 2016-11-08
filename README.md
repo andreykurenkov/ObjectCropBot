@@ -1,4 +1,8 @@
 # Introduction
+This a form of Facebook's DeepMask implementation in torch, for my project in Stanford's CS 229 Machine Learning class. It includes a modification of DeepMask I called DeepCrop, which uses a pixel location to assist in the segmentation of an object, and several other variations on the basic architecture.
+
+# Original DeepMask README
+## Introduction
 This repository contains a [Torch](http://torch.ch) implementation for both the [DeepMask](http://arxiv.org/abs/1506.06204) and [SharpMask](http://arxiv.org/abs/1603.08695) object proposal algorithms.
 
 ![teaser](https://raw.githubusercontent.com/facebookresearch/deepmask/master/data/teaser.png)
@@ -26,12 +30,12 @@ If you use DeepMask/SharpMask in your research, please cite the relevant papers:
 ```
 Note: the version of DeepMask implemented here is the updated version reported in the SharpMask paper. DeepMask takes on average .5s per COCO image, SharpMask runs at .8s. Runtime roughly doubles for the "zoom" versions of the models.
 
-# Requirements and Dependencies
+## Requirements and Dependencies
 * MAC OS X or Linux
 * NVIDIA GPU with compute capability 3.5+
 * [Torch](http://torch.ch) with packages: [COCO API](https://github.com/pdollar/coco), [image](https://github.com/torch/image), [tds](https://github.com/torch/tds), [cjson](https://github.com/clementfarabet/lua---json), [nnx](https://github.com/clementfarabet/lua---nnx), [optim](https://github.com/torch/optim), [inn](https://github.com/szagoruyko/imagine-nn), [cutorch](https://github.com/torch/cutorch), [cunn](https://github.com/torch/cunn), [cudnn](https://github.com/soumith/cudnn.torch)
 
-# Quick Start
+## Quick Start
 To run pretrained DeepMask/SharpMask models to generate object proposals, follow these steps:
 
 1. Clone this repository into $DEEPMASK:
@@ -61,10 +65,10 @@ To run pretrained DeepMask/SharpMask models to generate object proposals, follow
    ```
 
 
-# Training Your Own Model
+## Training Your Own Model
 To train your own DeepMask/SharpMask models, follow these steps:
 
-## Preparation
+### Preparation
 1. If you have not done so already, clone this repository into $DEEPMASK:
 
    ```bash
@@ -88,7 +92,7 @@ To train your own DeepMask/SharpMask models, follow these steps:
    wget http://msvocds.blob.core.windows.net/coco2014/val2014.zip
    ```
 
-## Training
+### Training
 To train, launch the `train.lua` script. It contains several options, to list them, simply use the `--help` flag.
 
 1. To train DeepMask:
@@ -103,7 +107,7 @@ To train, launch the `train.lua` script. It contains several options, to list th
    th train.lua -dm /path/to/trained/deepmask/
    ```
 
-## Evaluation
+### Evaluation
 There are two ways to evaluate a model on the COCO dataset.
 
 1. `evalPerPatch.lua` evaluates only the mask generation step. The per-patch evaluation only uses image patches that contain roughly centered objects. Its usage is as follows:
@@ -119,17 +123,17 @@ There are two ways to evaluate a model on the COCO dataset.
    ```
 
 
-# Precomputed Proposals
+## Precomputed Proposals
 
 You can download pre-computed proposals (1000 per image) on the COCO and PASCAL VOC datasets, for both segmentation and bounding box proposals. We use the COCO JSON [format](http://mscoco.org/dataset/#format) for the proposals. The proposals are divided into chunks of 500 images each (that is, each JSON contains 1000 proposals per image for 500 images). All proposals correspond to the "zoom" setting in the paper (DeepMaskZoom and SharpMaskZoom) which tend to be most effective for object detection.
 
-## DeepMask
+### DeepMask
 * COCO Boxes: [[train](https://s3.amazonaws.com/deepmask/boxes/deepmask-coco-train-bbox.tar.gz) | [val](https://s3.amazonaws.com/deepmask/boxes/deepmask-coco-val-bbox.tar.gz) | [test-dev](https://s3.amazonaws.com/deepmask/boxes/deepmask-coco-test-dev-bbox.tar.gz) | [test-full](https://s3.amazonaws.com/deepmask/boxes/deepmask-coco-test-full-bbox.tar.gz)]
 * COCO Segments: [[train](https://s3.amazonaws.com/deepmask/segms/deepmask-coco-train.tar.gz) | [val](https://s3.amazonaws.com/deepmask/segms/deepmask-coco-val.tar.gz) | [test-dev](https://s3.amazonaws.com/deepmask/segms/deepmask-coco-test-dev.tar.gz) | [test-full](https://s3.amazonaws.com/deepmask/segms/deepmask-coco-test-full.tar.gz)]
 * PASCAL Boxes: [[train+val+test-2007](https://s3.amazonaws.com/deepmask/boxes/deepmask-pascal07-bbox.tar.gz) | [train+val+test-2012](https://s3.amazonaws.com/deepmask/boxes/deepmask-pascal12-bbox.tar.gz)]
 * PASCAL Segments: [[train+val+test-2007](https://s3.amazonaws.com/deepmask/segms/deepmask-pascal07.tar.gz) | [train+val+test-2012](https://s3.amazonaws.com/deepmask/segms/deepmask-pascal12.tar.gz)]
 
-## SharpMask
+### SharpMask
 * COCO Boxes: [[train](https://s3.amazonaws.com/deepmask/boxes/sharpmask-coco-train-bbox.tar.gz) | [val](https://s3.amazonaws.com/deepmask/boxes/sharpmask-coco-val-bbox.tar.gz) | [test-dev](https://s3.amazonaws.com/deepmask/boxes/sharpmask-coco-test-dev-bbox.tar.gz) | [test-full](https://s3.amazonaws.com/deepmask/boxes/sharpmask-coco-test-full-bbox.tar.gz)]
 * COCO Segments: [[train](https://s3.amazonaws.com/deepmask/segms/sharpmask-coco-train.tar.gz) | [val](https://s3.amazonaws.com/deepmask/segms/sharpmask-coco-val.tar.gz) | [test-dev](https://s3.amazonaws.com/deepmask/segms/sharpmask-coco-test-dev.tar.gz) | [test-full](https://s3.amazonaws.com/deepmask/segms/sharpmask-coco-test-full.tar.gz)]
 * PASCAL Boxes: [[train+val+test-2007](https://s3.amazonaws.com/deepmask/boxes/sharpmask-pascal07-bbox.tar.gz) | [train+val+test-2012](https://s3.amazonaws.com/deepmask/boxes/sharpmask-pascal12-bbox.tar.gz)]
