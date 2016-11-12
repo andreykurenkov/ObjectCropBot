@@ -24,14 +24,17 @@ local DeepMask,_ = torch.class('nn.DeepMask','nn.Container')
 --------------------------------------------------------------------------------
 -- function: constructor
 function DeepMask:__init(config)
-  -- create common trunk
-  self:createTrunk(config)
+  -- create image features branch
+  self.featuresBranch = self:createFeaturesBranch(config)
+
+  -- create distance from crop pixel branch
+  self.distanceBranch = self:createDistanceBranch(config)
 
   -- create mask head
   self:createMaskBranch(config)
 
-  -- create score head
-  self:createScoreBranch(config)
+  -- combine into a single model
+  self:createCombinedModel(config)
 
   -- number of parameters
   local npt,nps,npm = 0,0,0
@@ -48,12 +51,15 @@ end
 
 --------------------------------------------------------------------------------
 -- function: create common trunk
-function DeepMask:createTrunk(config)
+function DeepMask:createFeaturesBranch(config)
   -- size of feature maps at end of trunk
   self.fSz = config.iSz/16
 
   -- load trunk
   local trunk = torch.load('pretrained/resnet-50.t7')
+
+  -- insert squeeze layer
+  trunk:insert(nn.Squeeze())
 
   -- remove BN
   utils.BNtoFixed(trunk, true)
@@ -68,7 +74,6 @@ function DeepMask:createTrunk(config)
   trunk:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
   trunk:add(cudnn.ReLU())
   trunk:add(nn.View(config.batch,128*self.fSz*self.fSz))
-  trunk:add(nn.Linear(128*self.fSz*self.fSz,512))
 
   -- from scratch? reset the parameters
   if config.scratch then
@@ -78,14 +83,28 @@ function DeepMask:createTrunk(config)
   -- symmetricPadding
   utils.updatePadding(trunk, nn.SpatialSymmetricPadding)
 
-  self.trunk = trunk:cuda()
-  return trunk
+  return trunk:cuda()
 end
+
+--------------------------------------------------------------------------------
+-- function: create distance branch
+function DeepMask:createDistanceBranch(config)
+  local distanceBranch = nn.Sequential()
+
+  -- insert squeeze layer
+  distanceBranch:insert(nn.Squeeze())
+  distanceBranch:insert(nn.SpatialAdaptiveMaxPooling(self.fSz,self.fSz))
+  distanceBranch:insert(nn.Unsqueeze(1))
+
+  return nn.Sequential():add(distanceBranch:cuda())
+end
+
 
 --------------------------------------------------------------------------------
 -- function: create mask branch
 function DeepMask:createMaskBranch(config)
   local maskBranch = nn.Sequential()
+  maskBranch:add(nn.Linear(129*self.fSz*self.fSz,512))
 
   -- maskBranch
   maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
@@ -107,19 +126,31 @@ function DeepMask:createMaskBranch(config)
 end
 
 --------------------------------------------------------------------------------
--- function: create score branch
-function DeepMask:createScoreBranch(config)
-  local scoreBranch = nn.Sequential()
-  scoreBranch:add(nn.Dropout(.5))
-  scoreBranch:add(nn.Linear(512,1024))
-  scoreBranch:add(nn.Threshold(0, 1e-6))
+-- function: create full model
+function DeepMask:createCombinedModel(config)
+  local combinedModel = nn.Sequential()
+  local inputBranches = nn.Parallel(1,1)
+  inputBranches:add(self.)
 
-  scoreBranch:add(nn.Dropout(.5))
-  scoreBranch:add(nn.Linear(1024,1))
+  -- maskBranch
+  maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
+  self.maskBranch = nn.Sequential():add(maskBranch:cuda())
 
-  self.scoreBranch = scoreBranch:cuda()
-  return self.scoreBranch
+  -- upsampling layer
+  if config.gSz > config.oSz then
+    local upSample = nn.Sequential()
+    upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
+    upSample:add(nn.View(config.batch,config.oSz,config.oSz))
+    upSample:add(nn.SpatialReSamplingEx{owidth=config.gSz,oheight=config.gSz,
+    mode='bilinear'})
+    upSample:add(nn.View(config.batch,config.gSz*config.gSz))
+    upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
+    self.maskBranch:add(upSample)
+  end
+
+  return self.maskBranch
 end
+
 
 --------------------------------------------------------------------------------
 -- function: training

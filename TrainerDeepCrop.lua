@@ -4,7 +4,7 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 
-Training and testing loop for DeepMask
+Training and testing loop for DeepCrop
 ------------------------------------------------------------------------------]]
 
 local optim = require 'optim'
@@ -18,8 +18,7 @@ function Trainer:__init(model, criterion, config)
   -- training params
   self.config = config
   self.model = model
-  self.maskNet = nn.Sequential():add(model.trunk):add(model.maskBranch)
-  self.scoreNet = nn.Sequential():add(model.trunk):add(model.scoreBranch)
+  self.maskNet = model.combinedModel
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
@@ -122,6 +121,9 @@ function Trainer:test(epoch, dataloader)
   self.scoremeter:reset()
 
   for n, sample in dataloader:run() do
+    if n%1000==0
+        print(n)
+    end
     -- copy input and target to the GPU
     self:copySamples(sample)
 

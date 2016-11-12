@@ -49,53 +49,9 @@ function DataSampler:__init(config,split)
   if split == 'train' then self.__size  = config.maxload*config.batch
   elseif split == 'val' then self.__size = config.testmaxload*config.batch end
 
-  if config.hfreq > 0 then
-    self.scales = {} -- scale range for score sampling
-    for scale = -3,2,.25 do table.insert(self.scales,scale) end
-    self:createBBstruct(self.objSz,config.scale)
-  end
-
   collectgarbage()
 end
 local function log2(x) return math.log(x)/math.log(2) end
-
---------------------------------------------------------------------------------
--- function: create BB struct of objects for score sampling
--- each key k contain the scale and bb information of all annotations of
--- image k
-function DataSampler:createBBstruct(objSz,scale)
-  local bbStruct = tds.Vec()
-
-  for i = 1, self.nImages do
-    local annIds = self.coco:getAnnIds({imgId=self.imgIds[i]})
-    local bbs = {scales = {}}
-    if annIds:dim() ~= 0 then
-      for i = 1,annIds:size(1) do
-        local annId = annIds[i]
-        local ann = self.coco:loadAnns(annId)[1]
-        local bbGt = ann.bbox
-        local x0,y0,w,h = bbGt[1],bbGt[2],bbGt[3],bbGt[4]
-        local xc,yc, maxDim = x0+w/2,y0+h/2, math.max(w,h)
-
-        for s = -32,32,1 do
-          if maxDim > objSz*2^((s-1)*scale) and
-            maxDim <= objSz*2^((s+1)*(scale)) then
-            local ss = -s*scale
-            local xcS,ycS = xc*2^ss,yc*2^ss
-            if not bbs[ss] then
-              bbs[ss] = {}; table.insert(bbs.scales,ss)
-            end
-            table.insert(bbs[ss],{xcS,ycS,category_id=ann.category})
-            break
-          end
-        end
-      end
-    end
-    bbStruct:insert(tds.Hash(bbs))
-  end
-  collectgarbage()
-  self.bbStruct = bbStruct
-end
 
 --------------------------------------------------------------------------------
 -- function: get size of epoch
@@ -105,17 +61,13 @@ end
 
 --------------------------------------------------------------------------------
 -- function: get a sample
-function DataSampler:get(headSampling)
+function DataSampler:get()
   local input,label
-  if headSampling == 1 then -- sample masks
-    input, label = self:maskSampling()
-  else -- sample score
-    input,label = self:scoreSampling()
-  end
+  input, label = self:maskSampling()
 
   if torch.uniform() > .5 then
     input = image.hflip(input)
-    if headSampling == 1 then label = image.hflip(label) end
+    label = image.hflip(label)
   end
 
   -- normalize input
@@ -155,47 +107,6 @@ function DataSampler:maskSampling()
   lbl:mul(2):add(-1)
 
   return inp, lbl
-end
-
---------------------------------------------------------------------------------
--- function: score head sampler
-local imgPad = torch.Tensor()
-function DataSampler:scoreSampling(cat,imgId)
-  local idx,bb
-  repeat
-    idx = torch.random(1,self.nImages)
-    bb = self.bbStruct[idx]
-  until #bb.scales ~= 0
-
-  local imgId = self.imgIds[idx]
-  local imgName = self.coco:loadImgs(imgId)[1].file_name
-  local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
-  local img = image.load(pathImg,3)
-  local h,w = img:size(2),img:size(3)
-
-  -- sample central pixel of BB to be used
-  local x,y,scale
-  local lbl = torch.Tensor(1)
-  if torch.uniform() > .5 then
-    x,y,scale = self:posSamplingBB(bb)
-    lbl:fill(1)
-  else
-    x,y,scale = self:negSamplingBB(bb,w,h)
-    lbl:fill(-1)
-  end
-
-  local s = 2^-scale
-  x,y  = math.min(math.max(x*s,1),w), math.min(math.max(y*s,1),h)
-  local isz = math.max(self.wSz*s,10)
-  local bw =isz/2
-
-  --pad/crop/rescale
-  imgPad:resize(3,h+2*bw,w+2*bw):fill(.5)
-  imgPad:narrow(2,bw+1,h):narrow(3,bw+1,w):copy(img)
-  local inp = imgPad:narrow(2,y,isz):narrow(3,x,isz)
-  inp = image.scale(inp,self.wSz,self.wSz)
-
-  return inp,lbl
 end
 
 --------------------------------------------------------------------------------
