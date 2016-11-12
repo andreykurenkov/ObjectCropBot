@@ -76,10 +76,10 @@ function DataLoader:run()
           end
           collectgarbage()
 
-          return {inputs = inputs, labels = labels, head = head}
+          return {inputs = inputs, labels = labels}
         end,
         function(_sample_) sample = _sample_ end,
-        bsz, self.hfreq
+        bsz
       )
       idx = idx + batch
     end

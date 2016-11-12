@@ -89,15 +89,15 @@ function DataSampler:maskSampling()
       local annid = annIds[torch.random(annIds:size(1))]
       ann = self.coco:loadAnns(annid)[1]
   end
-  local bbox = self:jitterBox(ann.bbox)
+  local bbox = ann.bbox --self:jitterBox(ann.bbox)
   local imgName = self.coco:loadImgs(ann.image_id)[1].file_name
 
   -- input
   local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
   local inp = image.load(pathImg,3)
   local h, w = inp:size(2), inp:size(3)
-  inp = self:cropTensor(inp, bbox, 0.5)
-  inp = image.scale(inp, wSz, wSz)
+  -- inp = self:cropTensor(inp, bbox, 0.5)
+  local imgInp = image.scale(inp, wSz, wSz)
 
   -- label
   local iSzR = iSz*(bbox[3]/wSz)
@@ -105,8 +105,30 @@ function DataSampler:maskSampling()
   local bboxInpSz = {xc-iSzR/2,yc-iSzR/2,iSzR,iSzR}
   local lbl = self:cropMask(ann, bboxInpSz, h, w, gSz)
   lbl:mul(2):add(-1)
+  scaledLbl = image.scale(lbl, wSz, wSz)
+  
+  -- Sample a 'crop click' pixel
+  local cropClickX = math.random(wSz);
+  local cropClickY = math.random(wSz);
+  while scaledLbl[cropClickX][cropClickY] < 1 do
+    cropClickX = math.random(wSz);
+    cropClickY = math.random(wSz);
+  end
 
-  return inp, lbl
+  -- Calculate 
+  local distanceInp = torch.FloatTensor(wSz,wSz)
+  distanceInp:apply(function(x)
+     local xInd = x%wSz;
+     local yInd = x/wSz;
+     return math.sqrt((xInd - cropClickX)^2 + (yInd - cropClickY)^2)
+  end)
+
+  --Create combine 2 x wSz x wSz input
+  local combinedInp = torch.FloatTensor(2,wSz,wSz)
+  combinedInp[1] = imgInp;
+  combinedInp[2] = distanceInp;
+
+  return combinedInp, lbl
 end
 
 --------------------------------------------------------------------------------
@@ -157,13 +179,13 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   for m, segm in pairs(seg) do
     polS[m] = torch.DoubleTensor():resizeAs(segm):copy(segm); polS[m]:mul(scale)
   end
-  local bboxS = {}
-  for m = 1,#bbox do bboxS[m] = bbox[m]*scale end
+  --local bboxS = {}
+  --for m = 1,#bbox do bboxS[m] = bbox[m]*scale end
 
   local Rs = self.maskApi.frPoly(polS, h*scale, w*scale)
   local mo = self.maskApi.decode(Rs)
-  local mc = self:cropTensor(mo, bboxS)
-  mask:copy(image.scale(mc,sz,sz):gt(0.5))
+  ---local mc = self:cropTensor(mo, bboxS)
+  mask:copy(image.scale(mo,sz,sz):gt(0.5))
 
   return mask
 end

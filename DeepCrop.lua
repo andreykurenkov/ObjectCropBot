@@ -31,21 +31,20 @@ function DeepMask:__init(config)
   self.distanceBranch = self:createDistanceBranch(config)
 
   -- create mask head
-  self:createMaskBranch(config)
+  self.maskBranch = self:createMaskBranch(config)
 
   -- combine into a single model
-  self:createCombinedModel(config)
+  self.combinedModel = self:createCombinedModel(config)
 
   -- number of parameters
   local npt,nps,npm = 0,0,0
-  local p1,p2,p3  = self.trunk:parameters(),
-    self.maskBranch:parameters(),self.scoreBranch:parameters()
+  local p1,p2,p3  = self.featuresBranch:parameters(),self.maskBranch:parameters(),self.distanceBranch:parameters()
   for k,v in pairs(p1) do npt = npt+v:nElement() end
   for k,v in pairs(p2) do npm = npm+v:nElement() end
   for k,v in pairs(p3) do nps = nps+v:nElement() end
-  print(string.format('| number of paramaters trunk: %d', npt))
+  print(string.format('| number of paramaters features branch: %d', npt))
   print(string.format('| number of paramaters mask branch: %d', npm))
-  print(string.format('| number of paramaters score branch: %d', nps))
+  print(string.format('| number of paramaters distanc bBranch branch: %d', nps))
   print(string.format('| number of paramaters total: %d', npt+nps+npm))
 end
 
@@ -56,24 +55,24 @@ function DeepMask:createFeaturesBranch(config)
   self.fSz = config.iSz/16
 
   -- load trunk
-  local trunk = torch.load('pretrained/resnet-50.t7')
+  local featuresBranch = torch.load('pretrained/resnet-50.t7')
 
   -- insert squeeze layer
-  trunk:insert(nn.Squeeze())
+  featuresBranch:insert(nn.Squeeze())
 
   -- remove BN
   utils.BNtoFixed(trunk, true)
 
   -- remove fully connected layers
-  trunk:remove();trunk:remove();trunk:remove();trunk:remove()
+  featuresBranch:featuresBranch();featuresBranch:remove();featuresBranch:remove();featuresBranch:remove()
 
   -- crop central pad
-  trunk:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
+  featuresBranch:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
 
   -- add common extra layers
-  trunk:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
-  trunk:add(cudnn.ReLU())
-  trunk:add(nn.View(config.batch,128*self.fSz*self.fSz))
+  featuresBranch:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
+  featuresBranch:add(cudnn.ReLU())
+  featuresBranch:add(nn.View(config.batch,128*self.fSz*self.fSz))
 
   -- from scratch? reset the parameters
   if config.scratch then
@@ -81,9 +80,9 @@ function DeepMask:createFeaturesBranch(config)
   end
 
   -- symmetricPadding
-  utils.updatePadding(trunk, nn.SpatialSymmetricPadding)
+  utils.updatePadding(featuresBranch, nn.SpatialSymmetricPadding)
 
-  return trunk:cuda()
+  return featuresBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
@@ -96,7 +95,7 @@ function DeepMask:createDistanceBranch(config)
   distanceBranch:insert(nn.SpatialAdaptiveMaxPooling(self.fSz,self.fSz))
   distanceBranch:insert(nn.Unsqueeze(1))
 
-  return nn.Sequential():add(distanceBranch:cuda())
+  return distanceBranch:cuda()
 end
 
 
@@ -108,7 +107,7 @@ function DeepMask:createMaskBranch(config)
 
   -- maskBranch
   maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
-  self.maskBranch = nn.Sequential():add(maskBranch:cuda())
+  maskBranch = nn.Sequential():add(maskBranch:cuda())
 
   -- upsampling layer
   if config.gSz > config.oSz then
@@ -119,10 +118,10 @@ function DeepMask:createMaskBranch(config)
     mode='bilinear'})
     upSample:add(nn.View(config.batch,config.gSz*config.gSz))
     upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
-    self.maskBranch:add(upSample)
+    maskBranch:add(upSample)
   end
 
-  return self.maskBranch
+  return maskBranch
 end
 
 --------------------------------------------------------------------------------
@@ -130,61 +129,47 @@ end
 function DeepMask:createCombinedModel(config)
   local combinedModel = nn.Sequential()
   local inputBranches = nn.Parallel(1,1)
-  inputBranches:add(self.)
+  inputBranches:add(self.featuresBranch)
+  inputBranches:add(self.distanceBranch)
+  combinedModel:add(inputBranches)
+  combinedModel:add(self.maskBranch)
 
-  -- maskBranch
-  maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
-  self.maskBranch = nn.Sequential():add(maskBranch:cuda())
-
-  -- upsampling layer
-  if config.gSz > config.oSz then
-    local upSample = nn.Sequential()
-    upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
-    upSample:add(nn.View(config.batch,config.oSz,config.oSz))
-    upSample:add(nn.SpatialReSamplingEx{owidth=config.gSz,oheight=config.gSz,
-    mode='bilinear'})
-    upSample:add(nn.View(config.batch,config.gSz*config.gSz))
-    upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
-    self.maskBranch:add(upSample)
-  end
-
-  return self.maskBranch
+  return combinedModel
 end
 
 
 --------------------------------------------------------------------------------
 -- function: training
 function DeepMask:training()
-  self.trunk:training(); self.maskBranch:training(); self.scoreBranch:training()
+  self.featuresBranch:training(); self.distanceBranch:training(); self.maskBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: evaluate
 function DeepMask:evaluate()
-  self.trunk:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:evaluate()
+  self.featuresBranch:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate()
 end
 
 --------------------------------------------------------------------------------
 -- function: to cuda
 function DeepMask:cuda()
-  self.trunk:cuda(); self.scoreBranch:cuda(); self.maskBranch:cuda()
+  self.featuresBranch:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
 -- function: to float
 function DeepMask:float()
-  self.trunk:float(); self.scoreBranch:float(); self.maskBranch:float()
+  self.featuresBranch:float(); self.distanceBranch:float(); self.maskBranch:float()
 end
 
 --------------------------------------------------------------------------------
 -- function: inference (used for full scene inference)
 function DeepMask:inference()
-  self.trunk:evaluate()
+  self.featuresBranch:evaluate()
   self.maskBranch:evaluate()
-  self.scoreBranch:evaluate()
+  self.distanceBranch:evaluate()
 
-  utils.linear2convTrunk(self.trunk,self.fSz)
-  utils.linear2convHead(self.scoreBranch)
+  utils.linear2convTrunk(self.featuresBranch,self.fSz)
   utils.linear2convHead(self.maskBranch.modules[1])
   self.maskBranch = self.maskBranch.modules[1]
 
@@ -199,9 +184,8 @@ function DeepMask:clone(...)
   local clone = f:readObject(); f:close()
 
   if select('#',...) > 0 then
-    clone.trunk:share(self.trunk,...)
+    clone.featuresBranch:share(self.featuresBranch,...)
     clone.maskBranch:share(self.maskBranch,...)
-    clone.scoreBranch:share(self.scoreBranch,...)
   end
 
   return clone

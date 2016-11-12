@@ -8,6 +8,7 @@ Training and testing loop for DeepCrop
 ------------------------------------------------------------------------------]]
 
 local optim = require 'optim'
+local image = require 'image'
 paths.dofile('trainMeters.lua')
 
 local Trainer = torch.class('Trainer')
@@ -18,7 +19,7 @@ function Trainer:__init(model, criterion, config)
   -- training params
   self.config = config
   self.model = model
-  self.maskNet = model.combinedModel
+  self.combinedNet = model.combinedNet
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
@@ -35,7 +36,6 @@ function Trainer:__init(model, criterion, config)
   -- params and gradparams
   self.pt,self.gt = model.trunk:getParameters()
   self.pm,self.gm = model.maskBranch:getParameters()
-  self.ps,self.gs = model.scoreBranch:getParameters()
 
   -- allocate cuda tensors
   self.inputs, self.labels = torch.CudaTensor(), torch.CudaTensor()
@@ -43,7 +43,6 @@ function Trainer:__init(model, criterion, config)
   -- meters
   self.lossmeter  = LossMeter()
   self.maskmeter  = IouMeter(0.5,config.testmaxload*config.batch)
-  self.scoremeter = BinaryMeter()
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -70,12 +69,8 @@ function Trainer:train(epoch, dataloader)
 
     -- forward/backward
     local model, params, feval, optimState
-    if sample.head == 1 then
-      model, params = self.maskNet, self.pm
+      model, params = self.combinedNet, self.pm
       feval,optimState = fevalmask, self.optimState.mask
-    else
-      model, params = self.scoreNet, self.ps
-      feval,optimState = fevalscore, self.optimState.score
     end
 
     local outputs = model:forward(self.inputs)
@@ -83,7 +78,6 @@ function Trainer:train(epoch, dataloader)
 
     model:zeroGradParameters()
     local gradOutputs = self.criterion:backward(outputs, self.labels)
-    if sample.head == 1 then gradOutputs:mul(self.inputs:size(1)) end
     model:backward(self.inputs, gradOutputs)
 
     -- optimize
@@ -92,6 +86,13 @@ function Trainer:train(epoch, dataloader)
 
     -- update loss
     self.lossmeter:add(lossbatch)
+
+    
+    if n<3 then
+        image.save(string.format('./samples/train/train_%d_%d_in.jpg',epoch,n),self.inputs)
+        image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels)
+        image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs)
+    end
   end
 
   -- write log
@@ -118,29 +119,26 @@ local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
   self.maskmeter:reset()
-  self.scoremeter:reset()
 
   for n, sample in dataloader:run() do
-    if n%1000==0
-        print(n)
-    end
     -- copy input and target to the GPU
     self:copySamples(sample)
 
-    if sample.head == 1 then
-      local outputs = self.maskNet:forward(self.inputs)
-      self.maskmeter:add(outputs:view(self.labels:size()),self.labels)
-    else
-      local outputs = self.scoreNet:forward(self.inputs)
-      self.scoremeter:add(outputs, self.labels)
-    end
+    local outputs = self.combinedNet:forward(self.inputs)
+    self.combinedModel:add(outputs:view(self.labels:size()),self.labels)
     cutorch.synchronize()
+   
+    if n<3 then
+        image.save(string.format('./samples/test/test_%d_%d_in.jpg',epoch,n),self.inputs)
+        image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels)
+        image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs)
+    end
 
   end
   self.model:training()
 
   -- check if bestmodel so far
-  local z,bestmodel = self.maskmeter:value('0.7')
+  local z,bestmodel = self.combinedNet:value('0.7')
   if z > maxacc then
     torch.save(string.format('%s/bestmodel.t7', self.rundir),self.modelsv)
     maxacc = z

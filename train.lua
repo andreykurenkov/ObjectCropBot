@@ -35,8 +35,6 @@ cmd:option('-maxepoch', 300, 'max number of training epochs')
 cmd:option('-iSz', 160, 'input size')
 cmd:option('-oSz', 56, 'output size')
 cmd:option('-gSz', 112, 'ground truth size')
-cmd:option('-shift', 16, 'shift jitter allowed')
-cmd:option('-scale', .25, 'scale jitter allowed')
 cmd:option('-scratch', false, 'train DeepMask with randomly initialize weights')
 cmd:text()
 cmd:text('SharpMask Options:')
@@ -60,7 +58,7 @@ if #config.dm > 0 then
   config.gSz = config.iSz -- in sharpmask, ground-truth has same dim as input
 end
 
-paths.dofile('DeepMask.lua')
+paths.dofile('DeepCrop.lua')
 if trainSm then paths.dofile('SharpMask.lua') end
 
 --------------------------------------------------------------------------------
@@ -80,7 +78,7 @@ end
 
 --------------------------------------------------------------------------------
 -- directory to save log and model
-local pathsv = trainSm and 'sharpmask/exp' or 'deepmask/exp'
+local pathsv = trainSm and 'sharpmask/exp' or 'deepcrop/exp'
 config.rundir = cmd:string(
   paths.concat(config.reload=='' and config.rundir or config.reload, pathsv),
   config,{rundir=true, gpu=true, reload=true, datadir=true, dm=true} --ignore
@@ -104,7 +102,7 @@ local trainLoader, valLoader = DataLoader.create(config)
 if trainSm then
   paths.dofile('TrainerSharpMask.lua')
 else
-  paths.dofile('TrainerDeepMask.lua')
+  paths.dofile('TrainerDeepCrop.lua')
 end
 local trainer = Trainer(model, criterion, config)
 
