@@ -9,6 +9,7 @@ Train DeepMask or SharpMask
 
 require 'torch'
 require 'cutorch'
+require 'cudnn'
 
 --------------------------------------------------------------------------------
 -- parse arguments
@@ -25,7 +26,7 @@ cmd:option('-nthreads', 2, 'number of threads for DataSampler')
 cmd:option('-reload', '', 'reload a network from given directory')
 cmd:text()
 cmd:text('Training Options:')
-cmd:option('-batch', 32, 'training batch size')
+cmd:option('-batch', 12, 'training batch size')
 cmd:option('-lr', 0, 'learning rate (0 uses default lr schedule)')
 cmd:option('-momentum', 0.9, 'momentum')
 cmd:option('-wd', 5e-4, 'weight decay')
@@ -89,7 +90,7 @@ os.execute(string.format('mkdir -p %s',config.rundir))
 
 --------------------------------------------------------------------------------
 -- network and criterion
-model = model or (trainSm and nn.SharpMask(config) or nn.DeepMask(config))
+model = model or (trainSm and nn.SharpMask(config) or nn.DeepCrop(config))
 local criterion = nn.SoftMarginCriterion():cuda()
 
 --------------------------------------------------------------------------------
@@ -105,7 +106,7 @@ else
   paths.dofile('TrainerDeepCrop.lua')
 end
 local trainer = Trainer(model, criterion, config)
-
+cudnn.verbose = true 
 --------------------------------------------------------------------------------
 -- do it
 epoch = epoch or 1

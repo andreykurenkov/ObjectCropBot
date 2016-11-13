@@ -46,6 +46,10 @@ function DataSampler:__init(config,split)
   self.catIds = self.coco:getCatIds()
   self.nImages = self.imgIds:size(1)
 
+  --self.imgWindow = image.window()
+  --self.lblWindow = image.window()
+  --self.distWindow = image.window()
+
   if split == 'train' then self.__size  = config.maxload*config.batch
   elseif split == 'val' then self.__size = config.testmaxload*config.batch end
 
@@ -71,7 +75,8 @@ function DataSampler:get()
   end
 
   -- normalize input
-  for i=1,3 do input:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  for i=1,3 do input[1]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  for i=1,3 do input[2]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
 
   return input,label
 end
@@ -98,6 +103,7 @@ function DataSampler:maskSampling()
   local h, w = inp:size(2), inp:size(3)
   -- inp = self:cropTensor(inp, bbox, 0.5)
   local imgInp = image.scale(inp, wSz, wSz)
+  --image.display{input=imgInp,gui=false,window=self.imgWindow}
 
   -- label
   local iSzR = iSz*(bbox[3]/wSz)
@@ -105,31 +111,76 @@ function DataSampler:maskSampling()
   local bboxInpSz = {xc-iSzR/2,yc-iSzR/2,iSzR,iSzR}
   local lbl = self:cropMask(ann, bboxInpSz, h, w, gSz)
   lbl:mul(2):add(-1)
-  scaledLbl = image.scale(lbl, wSz, wSz)
-  
-  -- Sample a 'crop click' pixel
-  local cropClickX = math.random(wSz);
-  local cropClickY = math.random(wSz);
-  while scaledLbl[cropClickX][cropClickY] < 1 do
-    cropClickX = math.random(wSz);
-    cropClickY = math.random(wSz);
-  end
+  --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
-  -- Calculate 
-  local distanceInp = torch.FloatTensor(wSz,wSz)
-  distanceInp:apply(function(x)
-     local xInd = x%wSz;
-     local yInd = x/wSz;
-     return math.sqrt((xInd - cropClickX)^2 + (yInd - cropClickY)^2)
-  end)
+  local distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
 
-  --Create combine 2 x wSz x wSz input
-  local combinedInp = torch.FloatTensor(2,wSz,wSz)
-  combinedInp[1] = imgInp;
-  combinedInp[2] = distanceInp;
+  --Create combine 3 x wSz x wSz input x 2
+  local combinedInp = torch.cat(imgInp,distanceInp,4)
 
   return combinedInp, lbl
 end
+
+
+--------------------------------------------------------------------------------
+-- function: crop bbox b from inp tensor
+function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
+  local distanceInp = torch.FloatTensor(3,wSz,wSz)
+
+  -- Sample a 'crop click' pixel
+  local cropClickX = math.random(gSz);
+  local cropClickY = math.random(gSz);
+  while lbl[cropClickX][cropClickY] < 1 do
+    cropClickX = math.random(gSz);
+    cropClickY = math.random(gSz);
+  end
+
+    print(cropClickX)
+    print(cropClickY)
+  -- Calculate distance from pixel
+  local pixelDistanceInp = torch.FloatTensor(gSz,gSz)
+  local i=0
+  pixelDistanceInp:apply(function() 
+     local xInd = i%wSz+1;
+     local yInd = math.floor(i/wSz)+1;
+     i = i+1
+     return math.sqrt((xInd - cropClickX)^2 + (yInd - cropClickY)^2)
+  end)
+  pixelDistanceInp = image.scale(pixelDistanceInp, wSz, wSz)
+  distanceInp[1] = pixelDistanceInp
+
+  -- Calculate rgb difference from pixel
+  local rgbDistanceInp = torch.FloatTensor(wSz,wSz)
+  i=0
+  rgbDistanceInp:apply(function()
+     local xInd = i%wSz+1;
+     local yInd = math.floor(i/wSz)+1;
+     i = i+1
+     return torch.dist(imgInp[{{1,3},xInd,yInd}],
+                       imgInp[{{1,3},cropClickX,cropClickY}])
+  end)
+  distanceInp[2] = rgbDistanceInp
+
+  -- Calculate lum difference from pixel
+  local lumDistanceInp = torch.FloatTensor(wSz,wSz)
+  i=0
+  lumDistanceInp:apply(function()
+     local xInd = i%wSz+1;
+     local yInd = math.floor(i/wSz)+1;
+     i = i+1
+     local lum = (imgInp[1][xInd][yInd]*0.299+
+                 imgInp[2][xInd][yInd]*0.587+
+                 imgInp[3][xInd][yInd]*0.114)
+     local clickLum = (imgInp[1][cropClickX][cropClickY]*0.299+
+                 imgInp[2][cropClickX][cropClickY]*0.587+
+                 imgInp[3][cropClickX][cropClickY]*0.114)
+     return math.sqrt((lum - clickLum)^2)
+  end)
+  distanceInp[3] = lumDistanceInp
+
+  return distanceInp
+end
+
 
 --------------------------------------------------------------------------------
 -- function: crop bbox b from inp tensor

@@ -19,11 +19,11 @@ function Trainer:__init(model, criterion, config)
   -- training params
   self.config = config
   self.model = model
-  self.combinedNet = model.combinedNet
+  self.combinedNet = model.combinedModel
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
-  for k,v in pairs({'trunk','mask','score'}) do
+  for k,v in pairs({'features','mask'}) do
     self.optimState[v] = {
       learningRate = config.lr,
       learningRateDecay = 0,
@@ -34,7 +34,7 @@ function Trainer:__init(model, criterion, config)
   end
 
   -- params and gradparams
-  self.pt,self.gt = model.trunk:getParameters()
+  self.pt,self.gt = model.featuresBranch:getParameters()
   self.pm,self.gm = model.maskBranch:getParameters()
 
   -- allocate cuda tensors
@@ -59,9 +59,8 @@ function Trainer:train(epoch, dataloader)
 
   local timer = torch.Timer()
 
-  local fevaltrunk = function() return self.model.trunk.output, self.gt end
+  local fevalfeatures = function() return self.model.featuresBranch.output, self.gt end
   local fevalmask  = function() return self.criterion.output,   self.gm end
-  local fevalscore = function() return self.criterion.output,   self.gs end
 
   for n, sample in dataloader:run() do
     -- copy samples to the GPU
@@ -69,10 +68,8 @@ function Trainer:train(epoch, dataloader)
 
     -- forward/backward
     local model, params, feval, optimState
-      model, params = self.combinedNet, self.pm
-      feval,optimState = fevalmask, self.optimState.mask
-    end
-
+    model, params = self.combinedNet, self.pm
+    feval,optimState = fevalmask, self.optimState.mask
     local outputs = model:forward(self.inputs)
     local lossbatch = self.criterion:forward(outputs, self.labels)
 
@@ -81,17 +78,19 @@ function Trainer:train(epoch, dataloader)
     model:backward(self.inputs, gradOutputs)
 
     -- optimize
-    optim.sgd(fevaltrunk, self.pt, self.optimState.trunk)
+    optim.sgd(fevalfeatures, self.pt, self.optimState.features)
     optim.sgd(feval, params, optimState)
 
     -- update loss
     self.lossmeter:add(lossbatch)
 
-    
     if n<3 then
-        image.save(string.format('./samples/train/train_%d_%d_in.jpg',epoch,n),self.inputs)
-        image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels)
-        image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs)
+      image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,1))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,1))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,1))
+      --image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),labelImg)
+      image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs)
     end
   end
 
@@ -125,15 +124,15 @@ function Trainer:test(epoch, dataloader)
     self:copySamples(sample)
 
     local outputs = self.combinedNet:forward(self.inputs)
-    self.combinedModel:add(outputs:view(self.labels:size()),self.labels)
+    self.combinedNet:add(outputs:view(self.labels:size()),self.labels)
     cutorch.synchronize()
    
     if n<3 then
-        image.save(string.format('./samples/test/test_%d_%d_in.jpg',epoch,n),self.inputs)
-        image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels)
-        image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs)
+      image.save(string.format('./samples/test/test_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
+      image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,1))
+     -- image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),labelImg)
+      image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs)
     end
-
   end
   self.model:training()
 
