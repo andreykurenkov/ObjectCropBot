@@ -10,7 +10,6 @@ Train DeepMask or SharpMask
 require 'torch'
 require 'cutorch'
 require 'cudnn'
-optnet = require 'optnet'
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
