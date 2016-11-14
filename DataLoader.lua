@@ -62,17 +62,23 @@ function DataLoader:run()
       threads:addjob(
         function(bsz)
           local inputs, labels
-
-          for i = 1, bsz do
+          local i = 1
+          while i<=bsz do
             local input, label = _G.ds:get()
-            if not inputs then
-              local iSz = input:size():totable()
-              local mSz = label:size():totable()
-              inputs = torch.FloatTensor(bsz, table.unpack(iSz))
-              labels = torch.FloatTensor(bsz, table.unpack(mSz))
+            if input==nil then
+              i = i - 1 
+              continue
+            else
+              i = i + 1 
+              if not inputs then
+                local iSz = input:size():totable()
+                local mSz = label:size():totable()
+                inputs = torch.FloatTensor(bsz, table.unpack(iSz))
+                labels = torch.FloatTensor(bsz, table.unpack(mSz))
+              end
+              inputs[i]:copy(input)
+              labels[i]:copy(label)
             end
-            inputs[i]:copy(input)
-            labels[i]:copy(label)
           end
           collectgarbage()
 

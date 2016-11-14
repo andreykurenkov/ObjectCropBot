@@ -107,7 +107,6 @@ else
   paths.dofile('TrainerDeepCrop.lua')
 end
 local trainer = Trainer(model, criterion, config)
-cudnn.verbose = true 
 --------------------------------------------------------------------------------
 -- do it
 epoch = epoch or 1

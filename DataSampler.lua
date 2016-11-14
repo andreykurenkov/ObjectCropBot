@@ -68,6 +68,10 @@ end
 function DataSampler:get()
   local input,label
   input, label = self:maskSampling()
+
+  if input==nil then
+      return nil,nil
+  end
   -- normalize input
   for i=1,3 do input:select(4,1):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
   --for i=1,3 do input:select(4,2):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
@@ -108,7 +112,9 @@ function DataSampler:maskSampling()
   --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
   local distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
-
+  if distanceInp == nil then
+      return nil, nil
+  end
   --Create combine 3 x wSz x wSz input x 2
   local combinedInp = torch.cat(imgInp,distanceInp,4)
 
@@ -137,6 +143,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   local cropClickY = gSz
   if count==1 then
     print('Count is one whaaaaaaat')
+    return nil
   else
     cropClick = math.random(count-1)
     cropClickX = lblPoints[cropClick][1]
