@@ -121,33 +121,23 @@ end
 
 
 --------------------------------------------------------------------------------
--- function: crop bbox b from inp tensor
+-- function: generate 'click' inside bounded object and get additional inputs for it
 function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   local distanceInp = torch.FloatTensor(3,wSz,wSz)
 
   -- Sample a 'crop click' pixel
-  local lblPoints = {}
-  local count = 1
-  for i=0,gSz^2-1 do
-    local xInd = i%gSz+1
-    local yInd = math.floor(i/gSz)+1
-    if lbl[yInd][xInd] > -1 then
-      lblPoints[count] = {xInd,yInd} 
-      count = count+1
-    end
-  end
-  
-  local cropClickX = gSz
-  local cropClickY = gSz
-  if count==1 then
-    print('Count is one whaaaaaaat')
+  count = lbl:gt(0):sum()
+  if count==1 or count<(gSz/8) then
+    --- Skip samples with no or very small crop borders
     return nil
   else
-    cropClick = math.random(count-1)
-    cropClickX = lblPoints[cropClick][1]
-    cropClickY = lblPoints[cropClick][2]
+    flatLbl = lbl:reshape(gSz^2)
+    idx = torch.linspace(0,gSz^2-1,gSz^2)[flatLbl:gt(0)]
+    cropClick = math.random(count)
+    cropClickX = idx[cropClick]%gSz+1
+    cropClickY = math.floor(idx[cropClick]/gSz)+1
   end
-
+  
   -- Calculate distance from pixel, from -1 to 1
   local pixelDistanceInp = torch.FloatTensor(gSz,gSz)
   local i=0
