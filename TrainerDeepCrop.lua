@@ -72,7 +72,6 @@ function Trainer:train(epoch, dataloader)
     feval,optimState = fevalmask, self.optimState.mask
     local outputs = model:forward(self.inputs)
     local lossbatch = self.criterion:forward(outputs, self.labels)
-
     model:zeroGradParameters()
     local gradOutputs = self.criterion:backward(outputs, self.labels)
     model:backward(self.inputs, gradOutputs)
@@ -84,13 +83,14 @@ function Trainer:train(epoch, dataloader)
     -- update loss
     self.lossmeter:add(lossbatch)
 
-    if n<3 then
+    if n<4 then
       image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-      image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,1))
-      image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,1))
-      image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,1))
-      --image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),labelImg)
-      image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs)
+      image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
+      labelSize = self.labels[1]:size()
+      image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+      image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]))
     end
   end
 
@@ -127,11 +127,14 @@ function Trainer:test(epoch, dataloader)
     self.combinedNet:add(outputs:view(self.labels:size()),self.labels)
     cutorch.synchronize()
    
-    if n<3 then
+    if n<4 then
       image.save(string.format('./samples/test/test_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-      image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,1))
-     -- image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),labelImg)
-      image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs)
+      image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2))
+      image.save(string.format('./samples/test/test_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
+      image.save(string.format('./samples/test/test_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
+      labelSize = self.labels[1]:size()
+      image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+      image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]))
     end
   end
   self.model:training()

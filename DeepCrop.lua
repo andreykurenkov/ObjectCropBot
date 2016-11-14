@@ -56,7 +56,6 @@ function DeepCrop:createFeaturesBranch(config)
 
   -- load trunk
   local featuresBranch = torch.load('pretrained/resnet-50.t7')
-  featuresBranch:insert(nn.Squeeze(1),1)
   -- remove BN
   utils.BNtoFixed(featuresBranch, true)
 

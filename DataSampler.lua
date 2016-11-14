@@ -69,14 +69,10 @@ function DataSampler:get()
   local input,label
   input, label = self:maskSampling()
 
-  if torch.uniform() > .5 then
-    input = image.hflip(input)
-    label = image.hflip(label)
-  end
 
   -- normalize input
   for i=1,3 do input[1]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
-  for i=1,3 do input[2]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  --for i=1,3 do input[2]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
 
   return input,label
 end
@@ -128,23 +124,31 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   local distanceInp = torch.FloatTensor(3,wSz,wSz)
 
   -- Sample a 'crop click' pixel
-  local cropClickX = math.random(gSz);
-  local cropClickY = math.random(gSz);
-  while lbl[cropClickX][cropClickY] < 1 do
-    cropClickX = math.random(gSz);
-    cropClickY = math.random(gSz);
+  local lblPoints = {}
+  local count = 1
+  for i=0,gSz^2-1 do
+    local xInd = i%gSz+1
+    local yInd = math.floor(i/gSz)+1
+    if lbl[yInd][xInd] > -1 then
+      lblPoints[count] = {xInd,yInd} 
+      count = count+1
+    end
   end
 
-    print(cropClickX)
-    print(cropClickY)
+  cropClick = math.random(count-1)
+  cropClickX = lblPoints[cropClick][1]
+  cropClickY = lblPoints[cropClick][2]
+
   -- Calculate distance from pixel
   local pixelDistanceInp = torch.FloatTensor(gSz,gSz)
   local i=0
   pixelDistanceInp:apply(function() 
-     local xInd = i%wSz+1;
-     local yInd = math.floor(i/wSz)+1;
+     local xInd = i%gSz+1
+     local yInd = math.floor(i/gSz)+1
      i = i+1
-     return math.sqrt((xInd - cropClickX)^2 + (yInd - cropClickY)^2)
+     local maxDistX = math.max(gSz-cropClickX,cropClickX)*2
+     local maxDistY = math.max(gSz-cropClickY,cropClickY)*2
+     return math.abs(xInd - cropClickX)/maxDistX + math.abs(yInd - cropClickY)/maxDistY
   end)
   pixelDistanceInp = image.scale(pixelDistanceInp, wSz, wSz)
   distanceInp[1] = pixelDistanceInp
@@ -156,11 +160,13 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
      local xInd = i%wSz+1;
      local yInd = math.floor(i/wSz)+1;
      i = i+1
-     return torch.dist(imgInp[{{1,3},xInd,yInd}],
-                       imgInp[{{1,3},cropClickX,cropClickY}])
+     return torch.dist(imgInp[{{1,3},yInd,xInd}],
+                       imgInp[{{1,3},cropClickY,cropClickX}])
   end)
   distanceInp[2] = rgbDistanceInp
 
+  cropClickY = math.floor(cropClickY*wSz/gSz)
+  cropClickX = math.floor(cropClickX*wSz/gSz)
   -- Calculate lum difference from pixel
   local lumDistanceInp = torch.FloatTensor(wSz,wSz)
   i=0
@@ -168,12 +174,12 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
      local xInd = i%wSz+1;
      local yInd = math.floor(i/wSz)+1;
      i = i+1
-     local lum = (imgInp[1][xInd][yInd]*0.299+
-                 imgInp[2][xInd][yInd]*0.587+
-                 imgInp[3][xInd][yInd]*0.114)
-     local clickLum = (imgInp[1][cropClickX][cropClickY]*0.299+
-                 imgInp[2][cropClickX][cropClickY]*0.587+
-                 imgInp[3][cropClickX][cropClickY]*0.114)
+     local lum = (imgInp[1][yInd][xInd]*0.299+
+                 imgInp[2][yInd][xInd]*0.587+
+                 imgInp[3][yInd][xInd]*0.114)
+     local clickLum = (imgInp[1][cropClickY][cropClickX]*0.299+
+                 imgInp[2][cropClickY][cropClickX]*0.587+
+                 imgInp[3][cropClickY][cropClickX]*0.114)
      return math.sqrt((lum - clickLum)^2)
   end)
   distanceInp[3] = lumDistanceInp
