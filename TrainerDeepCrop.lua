@@ -86,7 +86,7 @@ function Trainer:train(epoch, dataloader)
     -- update loss
     self.lossmeter:add(lossbatch)
 
-    if n<4 then
+    if n<4 or n%100==0 then
       image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
       image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
       image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
