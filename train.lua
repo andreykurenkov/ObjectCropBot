@@ -10,7 +10,7 @@ Train DeepMask or SharpMask
 require 'torch'
 require 'cutorch'
 require 'cudnn'
-
+optnet = require 'optnet'
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
@@ -93,6 +93,8 @@ os.execute(string.format('mkdir -p %s',config.rundir))
 model = model or (trainSm and nn.SharpMask(config) or nn.DeepCrop(config))
 local criterion = nn.SoftMarginCriterion():cuda()
 
+print('| start training')
+
 --------------------------------------------------------------------------------
 -- initialize data loader
 local DataLoader = paths.dofile('DataLoader.lua')
@@ -110,7 +112,6 @@ cudnn.verbose = true
 --------------------------------------------------------------------------------
 -- do it
 epoch = epoch or 1
-print('| start training')
 for i = 1, config.maxepoch do
   trainer:train(epoch,trainLoader)
   if i%2 == 0 then trainer:test(epoch,valLoader) end

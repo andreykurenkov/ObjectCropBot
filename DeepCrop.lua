@@ -121,7 +121,7 @@ function DeepCrop:createCombinedModel(config)
   combinedModel:add(inputBranches)
   combinedModel:add(self.maskBranch)
   combinedModel = combinedModel:cuda()
-  
+
   if config.gSz > config.oSz then
     local upSample = nn.Sequential()
     upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))

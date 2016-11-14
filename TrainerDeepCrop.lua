@@ -63,6 +63,9 @@ function Trainer:train(epoch, dataloader)
   local fevalmask  = function() return self.criterion.output,   self.gm end
 
   for n, sample in dataloader:run() do
+    if n%10==0 then
+        print(string.format('Batch %d',n))
+    end
     -- copy samples to the GPU
     self:copySamples(sample)
 
@@ -85,7 +88,7 @@ function Trainer:train(epoch, dataloader)
 
     if n<4 then
       image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-      image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2))
+      image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
       image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
       image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
       labelSize = self.labels[1]:size()
@@ -120,6 +123,9 @@ function Trainer:test(epoch, dataloader)
   self.maskmeter:reset()
 
   for n, sample in dataloader:run() do
+    if n%10==0 then
+        print(string.format('Batch %d',n))
+    end
     -- copy input and target to the GPU
     self:copySamples(sample)
 
@@ -129,7 +135,7 @@ function Trainer:test(epoch, dataloader)
    
     if n<4 then
       image.save(string.format('./samples/test/test_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-      image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2))
+      image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
       image.save(string.format('./samples/test/test_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
       image.save(string.format('./samples/test/test_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
       labelSize = self.labels[1]:size()

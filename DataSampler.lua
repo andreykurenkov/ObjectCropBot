@@ -68,11 +68,9 @@ end
 function DataSampler:get()
   local input,label
   input, label = self:maskSampling()
-
-
   -- normalize input
-  for i=1,3 do input[1]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
-  --for i=1,3 do input[2]:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  for i=1,3 do input:select(4,1):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  --for i=1,3 do input:select(4,2):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
 
   return input,label
 end
@@ -139,7 +137,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   cropClickX = lblPoints[cropClick][1]
   cropClickY = lblPoints[cropClick][2]
 
-  -- Calculate distance from pixel
+  -- Calculate distance from pixel, from -1 to 1
   local pixelDistanceInp = torch.FloatTensor(gSz,gSz)
   local i=0
   pixelDistanceInp:apply(function() 
@@ -148,7 +146,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
      i = i+1
      local maxDistX = math.max(gSz-cropClickX,cropClickX)*2
      local maxDistY = math.max(gSz-cropClickY,cropClickY)*2
-     return math.abs(xInd - cropClickX)/maxDistX + math.abs(yInd - cropClickY)/maxDistY
+     return (math.abs(xInd - cropClickX)/maxDistX + math.abs(yInd - cropClickY)/maxDistY-0.5)*2
   end)
   pixelDistanceInp = image.scale(pixelDistanceInp, wSz, wSz)
   distanceInp[1] = pixelDistanceInp
