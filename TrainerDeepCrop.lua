@@ -77,7 +77,7 @@ function Trainer:train(epoch, dataloader)
     if not status then
       print('[train] Error during forward pass!!! ')
       print(outputs)
-      print(debug.traceback())
+      --print(debug.traceback())
     else
       local lossbatch = self.criterion:forward(outputs, self.labels)
       model:zeroGradParameters()
@@ -92,7 +92,7 @@ function Trainer:train(epoch, dataloader)
       -- update loss
       self.lossmeter:add(lossbatch)
 
-      if n<4 or n%100==0 then
+      if n<4 or n%500==0 then
         image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
@@ -100,6 +100,7 @@ function Trainer:train(epoch, dataloader)
         labelSize = self.labels[1]:size()
         image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
         image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0.5))
+        print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
   end
@@ -135,14 +136,14 @@ function Trainer:test(epoch, dataloader)
     end
     -- copy input and target to the GPU
     self:copySamples(sample)
-    
     local status, outputs = pcall(
         function() return self.combinedNet:forward(self.inputs) end)
     if not status then
       print('[test] Error during forward pass!!! ')
-      print(status)
+      print(outputs)
+      --print(debug.traceback())
     else
-      self.combinedNet:add(outputs:view(self.labels:size()),self.labels)
+      self.maskmeter:add(outputs:view(self.labels:size()),self.labels)
       cutorch.synchronize()
    
       if n<4 then
@@ -153,13 +154,14 @@ function Trainer:test(epoch, dataloader)
         labelSize = self.labels[1]:size()
         image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
         image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0.5))
+        print(string.format('[test] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
   end
   self.model:training()
 
   -- check if bestmodel so far
-  local z,bestmodel = self.combinedNet:value('0.7')
+  local z,bestmodel = self.maskmeter:value('0.7')
   if z > maxacc then
     torch.save(string.format('%s/bestmodel.t7', self.rundir),self.modelsv)
     maxacc = z
@@ -169,12 +171,11 @@ function Trainer:test(epoch, dataloader)
   -- write log
   local logepoch =
     string.format('[test]  | epoch %05d '..
-      '| IoU: mean %06.2f median %06.2f suc@.5 %06.2f suc@.7 %06.2f '..
-      '| acc %06.2f | bestmodel %s',
+      '| IoU: mean %06.2f median %06.2f suc@.5 %06.2f | bestmodel %s',
       epoch,
       self.maskmeter:value('mean'),self.maskmeter:value('median'),
       self.maskmeter:value('0.5'), self.maskmeter:value('0.7'),
-      self.scoremeter:value(), bestmodel and '*' or 'x')
+      bestmodel and '*' or 'x')
   print(logepoch)
   self.log:writeString(string.format('%s\n',logepoch))
   self.log:synchronize()
