@@ -61,16 +61,14 @@ function Trainer:train(epoch, dataloader)
 
   local fevalfeatures = function() return self.model.featuresBranch.output, self.gt end
   local fevalmask  = function() return self.criterion.output,   self.gm end
-
+  print(string.format('[train] Starting training on %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
-        print(string.format('Batch %d',n))
+        print(string.format('[train] batch %d, s/batch %04.2f',n,timer:time().real/n))
     end
     -- copy samples to the GPU
     self:copySamples(sample)
 
-    -- forward/backward
-    self.combinedNet:removeCopy()
     local model, params, feval, optimState
     model, params = self.combinedNet, self.pm
     feval,optimState = fevalmask, self.optimState.mask
@@ -78,7 +76,6 @@ function Trainer:train(epoch, dataloader)
     local lossbatch = self.criterion:forward(outputs, self.labels)
     model:zeroGradParameters()
 
-    self.combinedNet:addCopy()
     local gradOutputs = self.criterion:backward(outputs, self.labels)
     model:backward(self.inputs, gradOutputs)
 

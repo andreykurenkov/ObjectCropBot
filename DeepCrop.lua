@@ -54,6 +54,7 @@ function DeepCrop:createFeaturesBranch(config)
   -- size of feature maps at end of trunk
   self.fSz = config.iSz/16
 
+  --local featuresBranch = torch.load('pretrained/resnet-18.t7')
   -- load trunk
   local featuresBranch = torch.load('pretrained/resnet-50.t7')
   -- remove BN
@@ -69,6 +70,7 @@ function DeepCrop:createFeaturesBranch(config)
   featuresBranch:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
 
   -- add common extra layers
+  --featuresBranch:add(cudnn.SpatialConvolution(256,128,1,1,1,1))
   featuresBranch:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
   featuresBranch:add(cudnn.ReLU())
   featuresBranch:add(nn.View(config.batch,128*self.fSz*self.fSz))
@@ -92,10 +94,8 @@ function DeepCrop:createDistanceBranch(config)
   local distanceBranch = nn.Sequential()
   local k = config.iSz + 32 - self.fSz + 1 
   distanceBranch:insert(nn.SpatialSubSampling(3,k,k))
-  distanceBranch:add(nn.View(config.batch,3*self.fSz*self.fSz))
-
   --Needed for backward step from parallel container
-  distanceBranch:add(nn.Copy(nil,nil,true))
+  distanceBranch:add(nn.Reshape(3*self.fSz*self.fSz,true))
 
   return distanceBranch
 end
@@ -106,7 +106,6 @@ end
 function DeepCrop:createMaskBranch(config)
   local maskBranch = nn.Sequential()
   -- 128 from feature branch and 3 from distance branch
-  maskBranch:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
   maskBranch:add(nn.Linear((128+3)*self.fSz*self.fSz,512))
 
   -- maskBranch
@@ -137,26 +136,6 @@ function DeepCrop:createCombinedModel(config)
     combinedModel:add(upSample)
   end
   return combinedModel
-end
-
---------------------------------------------------------------------------------
--- function: remove copy
-function DeepCrop:removeCopy()
-  -- create image features branch
-  self.featuresBranch:remove()
-
-  -- create distance from crop pixel branch
-  self.distanceBranch:remove()
-end
-
---------------------------------------------------------------------------------
--- function: remove copy
-function DeepCrop:addCopy()
-  -- create image features branch
-  self.featuresBranch:add(nn.Copy(nil,nil,true):cuda())
-
-  -- create distance from crop pixel branch
-  self.distanceBranch:add(nn.Copy(nil,nil,true):cuda())
 end
 
 --------------------------------------------------------------------------------

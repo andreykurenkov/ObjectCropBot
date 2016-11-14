@@ -66,10 +66,8 @@ function DataLoader:run()
           while i<=bsz do
             local input, label = _G.ds:get()
             if input==nil then
-              i = i - 1 
-              continue
+             -- Skip this one
             else
-              i = i + 1 
               if not inputs then
                 local iSz = input:size():totable()
                 local mSz = label:size():totable()
@@ -78,6 +76,7 @@ function DataLoader:run()
               end
               inputs[i]:copy(input)
               labels[i]:copy(label)
+              i = i + 1 
             end
           end
           collectgarbage()
