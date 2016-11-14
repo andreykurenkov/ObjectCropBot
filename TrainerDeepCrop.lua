@@ -70,12 +70,15 @@ function Trainer:train(epoch, dataloader)
     self:copySamples(sample)
 
     -- forward/backward
+    self.combinedNet:removeCopy()
     local model, params, feval, optimState
     model, params = self.combinedNet, self.pm
     feval,optimState = fevalmask, self.optimState.mask
     local outputs = model:forward(self.inputs)
     local lossbatch = self.criterion:forward(outputs, self.labels)
     model:zeroGradParameters()
+
+    self.combinedNet:addCopy()
     local gradOutputs = self.criterion:backward(outputs, self.labels)
     model:backward(self.inputs, gradOutputs)
 

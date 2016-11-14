@@ -139,6 +139,25 @@ function DeepCrop:createCombinedModel(config)
   return combinedModel
 end
 
+--------------------------------------------------------------------------------
+-- function: remove copy
+function DeepCrop:removeCopy()
+  -- create image features branch
+  self.featuresBranch:remove()
+
+  -- create distance from crop pixel branch
+  self.distanceBranch:remove()
+end
+
+--------------------------------------------------------------------------------
+-- function: remove copy
+function DeepCrop:addCopy()
+  -- create image features branch
+  self.featuresBranch:add(nn.Copy(nil,nil,true):cuda())
+
+  -- create distance from crop pixel branch
+  self.distanceBranch:add(nn.Copy(nil,nil,true):cuda())
+end
 
 --------------------------------------------------------------------------------
 -- function: training
