@@ -42,7 +42,8 @@ function Trainer:__init(model, criterion, config)
 
   -- meters
   self.lossmeter  = LossMeter()
-  self.maskmeter  = IouMeter(0.5,config.testmaxload*config.batch)
+  self.trainmaskmeter  = IouMeter(0.5,config.maxload*config.batch)
+  self.testmaskmeter  = IouMeter(0.5,config.testmaxload*config.batch)
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -55,6 +56,7 @@ end
 function Trainer:train(epoch, dataloader)
   self.model:training()
   self:updateScheduler(epoch)
+  self.trainmaskmeter:reset()
   self.lossmeter:reset()
 
   local timer = torch.Timer()
@@ -64,7 +66,7 @@ function Trainer:train(epoch, dataloader)
   print(string.format('[train] Starting training on %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
-        print(string.format('[train] batch %d, s/batch %04.2f',n,timer:time().real/n))
+        print(string.format('[train] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n),self.lossmeter:value())
     end
     -- copy samples to the GPU
     self:copySamples(sample)
@@ -79,6 +81,7 @@ function Trainer:train(epoch, dataloader)
       print(outputs)
       --print(debug.traceback())
     else
+      self.trainmaskmeter:add(outputs:view(self.labels:size()),self.labels)
       local lossbatch = self.criterion:forward(outputs, self.labels)
       model:zeroGradParameters()
 
@@ -128,11 +131,11 @@ end
 local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
-  self.maskmeter:reset()
+  self.testmaskmeter:reset()
 
   for n, sample in dataloader:run() do
     if n%10==0 then
-        print(string.format('Batch %d',n))
+        print(string.format('[test] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n),self.lossmeter:value())
     end
     -- copy input and target to the GPU
     self:copySamples(sample)
@@ -161,7 +164,7 @@ function Trainer:test(epoch, dataloader)
   self.model:training()
 
   -- check if bestmodel so far
-  local z,bestmodel = self.maskmeter:value('0.7')
+  local z,bestmodel = self.testmaskmeter:value('0.7')
   if z > maxacc then
     torch.save(string.format('%s/bestmodel.t7', self.rundir),self.modelsv)
     maxacc = z
@@ -173,8 +176,8 @@ function Trainer:test(epoch, dataloader)
     string.format('[test]  | epoch %05d '..
       '| IoU: mean %06.2f median %06.2f suc@.5 %06.2f | bestmodel %s',
       epoch,
-      self.maskmeter:value('mean'),self.maskmeter:value('median'),
-      self.maskmeter:value('0.5'), self.maskmeter:value('0.7'),
+      self.testmaskmeter:value('mean'),self.testmaskmeter:value('median'),
+      self.testmaskmeter:value('0.5'), self.testmaskmeter:value('0.7'),
       bestmodel and '*' or 'x')
   print(logepoch)
   self.log:writeString(string.format('%s\n',logepoch))

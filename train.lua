@@ -109,9 +109,24 @@ end
 local trainer = Trainer(model, criterion, config)
 --------------------------------------------------------------------------------
 -- do it
+trainError = {}
+trainErroStr = '1'
+testError = {}
+testErroStr = '1'
 epoch = epoch or 1
 for i = 1, config.maxepoch do
   trainer:train(epoch,trainLoader)
-  if i%2 == 0 then trainer:test(epoch,valLoader) end
+  trainError[i] = 1-trainer.trainmaskmeter:value('0.7')
+  trainErroStr = string.format('%s,%f',trainErroStr,trainError[i])
+  if i%2 == 0 then 
+    trainer:test(epoch,valLoader) 
+    testError[i/2] = 1-trainer.testmaskmeter:value('0.7')
+    testErroStr = string.format('%s,%f',testErroStr,testError[i/2])
+  end
   epoch = epoch + 1
 end
+print('| training finished')
+print('| Train error:')
+print(trainError)
+print('| Test error:')
+print(testError)
