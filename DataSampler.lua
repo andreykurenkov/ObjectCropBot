@@ -132,10 +132,16 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
       count = count+1
     end
   end
-
-  cropClick = math.random(count-1)
-  cropClickX = lblPoints[cropClick][1]
-  cropClickY = lblPoints[cropClick][2]
+  
+  local cropClickX = gSz
+  local cropClickY = gSz
+  if count==1 then
+    print('Count is one whaaaaaaat')
+  else
+    cropClick = math.random(count-1)
+    cropClickX = lblPoints[cropClick][1]
+    cropClickY = lblPoints[cropClick][2]
+  end
 
   -- Calculate distance from pixel, from -1 to 1
   local pixelDistanceInp = torch.FloatTensor(gSz,gSz)

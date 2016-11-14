@@ -80,6 +80,8 @@ function DeepCrop:createFeaturesBranch(config)
 
   -- symmetricPadding
   utils.updatePadding(featuresBranch, nn.SpatialSymmetricPadding)
+
+  --Needed for backward step from parallel container
   featuresBranch:add(nn.Copy(nil,nil,true))
   return featuresBranch
 end
@@ -91,6 +93,8 @@ function DeepCrop:createDistanceBranch(config)
   local k = config.iSz + 32 - self.fSz + 1 
   distanceBranch:insert(nn.SpatialSubSampling(3,k,k))
   distanceBranch:add(nn.View(config.batch,3*self.fSz*self.fSz))
+
+  --Needed for backward step from parallel container
   distanceBranch:add(nn.Copy(nil,nil,true))
 
   return distanceBranch
