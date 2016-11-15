@@ -107,9 +107,11 @@ function DeepCrop:createMaskBranch(config)
   local maskBranch = nn.Sequential()
   -- 128 from feature branch and 3 from distance branch
   maskBranch:add(nn.Linear((128+3)*self.fSz*self.fSz,512))
-
-  -- maskBranch
   maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
+  maskBranch:add(nn.View(config.oSz,config.oSz))
+  maskBranch:add(nn.Unsqueeze(2,3))
+  maskBranch:add(cudnn.SpatialConvolution(1,1,5,5,1,1,2,2))
+  maskBranch:add(nn.View(config.batch,config.oSz*config.oSz))
 
   return maskBranch
 end
