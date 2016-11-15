@@ -110,7 +110,7 @@ function DataSampler:maskSampling()
   lbl:mul(2):add(-1)
   --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
-  local distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
+  local imgInp, distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
   if distanceInp == nil then
       return nil, nil
   end
@@ -130,7 +130,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   count = lbl:gt(0):sum()
   if count==1 or count<(wSz/8) then
     --- Skip samples with no or very small crop borders
-    return nil
+    return nil, nil
   else
     flatLbl = lbl:reshape(gSz^2)
     idx = torch.linspace(0,gSz^2-1,gSz^2)[flatLbl:gt(0)]
@@ -139,6 +139,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   clickIdx = math.floor(idx[cropClick])
   cropClickX = math.floor((clickIdx%gSz+1)*wSz/gSz)
   cropClickY = math.floor(math.floor(clickIdx/gSz+1)*wSz/gSz)
+  imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({-255,-255,-255})
 
   -- Calculate location difference from click pixel, via 2 norm
   pixels = torch.Tensor(torch.linspace(1,wSz,wSz))
@@ -163,7 +164,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   pixelLum = pixels:conv3(lumTensor)
   distanceInp[3] = (imgLum-pixelLum):norm(2,1)
 
-  return distanceInp
+  return imgInp,distanceInp
 end
 
 
