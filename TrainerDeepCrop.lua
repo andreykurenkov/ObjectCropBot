@@ -144,7 +144,7 @@ function Trainer:test(epoch, dataloader)
       print(outputs)
       --print(debug.traceback())
     else
-      self.maskmeter:add(outputs:view(self.labels:size()),self.labels)
+      self.testmaskmeter:add(outputs:view(self.labels:size()),self.labels)
       cutorch.synchronize()
    
       if n<4 then

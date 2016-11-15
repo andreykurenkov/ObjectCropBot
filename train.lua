@@ -125,7 +125,7 @@ for i = 1, config.maxepoch do
 
   trainLoss[i] = trainer.lossmeter:value()
   trainLossStr = string.format('%s,%f',trainErroStr,trainLoss[i])
-  trainError[i] = 1-trainer.trainmaskmeter:value('0.7')
+  trainError[i] = 1-trainer.trainIouMeter:value('0.7')
   trainErroStr = string.format('%s,%f',trainErroStr,trainError[i])
 
   if i%2 == 0 then 
@@ -133,14 +133,18 @@ for i = 1, config.maxepoch do
 
     testLoss[i] = trainer.lossmeter:value()
     testLossStr = string.format('%s,%f',trainErroStr,testLoss[i])
-    testError[i/2] = 1-trainer.testmaskmeter:value('0.7')
+    testError[i/2] = 1-trainer.testIouMeter:value('0.7')
     testErroStr = string.format('%s,%f',testErroStr,testError[i/2])
   end
 
   epoch = epoch + 1
 end
 print('| training finished')
-print('| Train error:')
-print(trainError)
+print('| Train loss:')
+print(testLossStr)
+print('| Train loss:')
+print(trainErroStr)
+print('| Test loss:')
+print(testLossStr)
 print('| Test error:')
-print(testError)
+print(trainErroStr)
