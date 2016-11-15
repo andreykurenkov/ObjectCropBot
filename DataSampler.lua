@@ -126,6 +126,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   local distanceInp = torch.FloatTensor(3,wSz,wSz)
 
   -- Sample a 'crop click' pixel
+  local cropClick
   count = lbl:gt(0):sum()
   if count==1 or count<(wSz/8) then
     --- Skip samples with no or very small crop borders
@@ -134,21 +135,22 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
     flatLbl = lbl:reshape(gSz^2)
     idx = torch.linspace(0,gSz^2-1,gSz^2)[flatLbl:gt(0)]
     cropClick = math.random(count)
-    cropClickX = idx[cropClick]%gSz+1
-    cropClickY = math.floor(idx[cropClick]/gSz)+1
   end
-  cropClickY = math.floor(cropClickY*wSz/gSz)
-  cropClickX = math.floor(cropClickX*wSz/gSz)
-  
+  clickIdx = math.floor(idx[cropClick])
+  cropClickX = math.floor((clickIdx%gSz+1)*wSz/gSz)
+  cropClickY = math.floor(math.floor(clickIdx/gSz+1)*wSz/gSz)
+
   -- Calculate location difference from click pixel, via 2 norm
   pixels = torch.Tensor(torch.linspace(1,wSz,wSz))
   pixelsX = pixels:reshape(wSz,1):repeatTensor(1,wSz)
   pixelsY = pixels:reshape(1,wSz):repeatTensor(wSz,1)
-  coords = pixelsX:cat(pixelsY,3):tranpose(1,3)
-  clickXs = torch.Tensor(cropClickX):repeatTensor(wSz,wSz)
-  clickYs = torch.Tensor(cropClickY):repeatTensor(wSz,wSz)
-  clickCoords = clickXs:cat(clickYs,3):tranpose(1,3)
-  distanceInp[1] = (coords-clickCoords):norm(2,1)
+  coords = pixelsX:cat(pixelsY,3):transpose(1,3)
+  clickXs = torch.Tensor({cropClickX}):repeatTensor(wSz,wSz)
+  clickYs = torch.Tensor({cropClickY}):repeatTensor(wSz,wSz)
+  clickCoords = clickXs:cat(clickYs,3):transpose(1,3)
+  dists = (coords-clickCoords):norm(2,1)
+  dists = (dists:div(dists:max())-0.5)*2
+  distanceInp[1] = dists
 
   -- Calculate rgb difference from click pixel, via 2 nom
   local pixel = imgInp[{{1,3},cropClickY,cropClickX}]

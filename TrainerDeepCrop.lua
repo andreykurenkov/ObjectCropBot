@@ -63,10 +63,10 @@ function Trainer:train(epoch, dataloader)
 
   local fevalfeatures = function() return self.model.featuresBranch.output, self.gt end
   local fevalmask  = function() return self.criterion.output,   self.gm end
-  print(string.format('[train] Starting training on %d batches',dataloader:size()))
+  print(string.format('[train] Starting training epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
-        print(string.format('[train] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n),self.lossmeter:value())
+        print(string.format('[train] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n,self.lossmeter:value()))
     end
     -- copy samples to the GPU
     self:copySamples(sample)
@@ -130,6 +130,7 @@ function Trainer:test(epoch, dataloader)
   self.model:evaluate()
   self.testmaskmeter:reset()
 
+  print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
         print(string.format('[test] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n),self.lossmeter:value())
