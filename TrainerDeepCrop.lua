@@ -134,7 +134,7 @@ function Trainer:test(epoch, dataloader)
   print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
-        print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.testIouMeter:mean()))
+        print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.testIouMeter:value('mean')))
     end
     -- copy input and target to the GPU
     self:copySamples(sample)

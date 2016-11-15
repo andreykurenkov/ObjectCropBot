@@ -111,7 +111,7 @@ function DeepCrop:createMaskBranch(config)
   maskBranch:add(nn.View(config.oSz,config.oSz))
   maskBranch:add(nn.Unsqueeze(2,3))
   maskBranch:add(cudnn.SpatialConvolution(1,1,5,5,1,1,2,2))
-  maskBranch:add(nn.View(config.batch,config.oSz*config.oSz))
+  --maskBranch:add(nn.View(config.batch,config.oSz*config.oSz))
 
   return maskBranch
 end
