@@ -127,7 +127,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
 
   -- Sample a 'crop click' pixel
   count = lbl:gt(0):sum()
-  if count==1 or count<(gSz/8) then
+  if count==1 or count<(wSz/8) then
     --- Skip samples with no or very small crop borders
     return nil
   else
@@ -137,40 +137,29 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
     cropClickX = idx[cropClick]%gSz+1
     cropClickY = math.floor(idx[cropClick]/gSz)+1
   end
-  
-  -- Calculate distance from pixel, from -1 to 1
-  local pixelDistanceInp = torch.FloatTensor(gSz,gSz)
-  local i=0
-  local xInd = 0
-  local yInd = 0
-  local maxDistX = 0
-  local maxDistY = 0
-  pixelDistanceInp:apply(function() 
-     xInd = i%gSz+1
-     yInd = math.floor(i/gSz)+1
-     i = i+1
-     maxDistX = math.max(gSz-cropClickX,cropClickX)*2
-     maxDistY = math.max(gSz-cropClickY,cropClickY)*2
-     return (math.abs(xInd - cropClickX)/maxDistX + math.abs(yInd - cropClickY)/maxDistY-0.5)*2
-  end)
-  pixelDistanceInp = image.scale(pixelDistanceInp, wSz, wSz)
-  distanceInp[1] = pixelDistanceInp
-
-  -- Calculate rgb difference from pixel
   cropClickY = math.floor(cropClickY*wSz/gSz)
   cropClickX = math.floor(cropClickX*wSz/gSz)
+  
+  -- Calculate location difference from click pixel, via 2 norm
+  pixels = torch.Tensor(torch.linspace(1,wSz,wSz))
+  pixelsX = pixels:reshape(wSz,1):repeatTensor(1,wSz)
+  pixelsY = pixels:reshape(1,wSz):repeatTensor(wSz,1)
+  coords = pixelsX:cat(pixelsY,3):tranpose(1,3)
+  clickXs = torch.Tensor(cropClickX):repeatTensor(wSz,wSz)
+  clickYs = torch.Tensor(cropClickY):repeatTensor(wSz,wSz)
+  clickCoords = clickXs:cat(clickYs,3):tranpose(1,3)
+  distanceInp[1] = (coords-clickCoords):norm(2,1)
+
+  -- Calculate rgb difference from click pixel, via 2 nom
   local pixel = imgInp[{{1,3},cropClickY,cropClickX}]
   pixels = pixel:reshape(1,1,3):repeatTensor(wSz,wSz,1):transpose(1,3)
-  local rgbDistanceInp = (imgInp-pixels):norm(2,1)
-  distanceInp[2] = rgbDistanceInp
+  distanceInp[2] = (imgInp-pixels):norm(2,1)
   
+  -- Calculate lum difference from click pixel, via 2 nom
   lumTensor = torch.Tensor({0.299,0.587,0.114}):reshape(3,1,1)
   imgLum = imgInp:conv3(lumTensor)
   pixelLum = pixels:conv3(lumTensor)
-  
-  -- Calculate lum difference from pixel
-  local lumDistanceInp = (imgLum-pixelLum):norm(2,1)
-  distanceInp[3] = lumDistanceInp
+  distanceInp[3] = (imgLum-pixelLum):norm(2,1)
 
   return distanceInp
 end
@@ -233,58 +222,6 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   mask:copy(image.scale(mo,sz,sz):gt(0.5))
 
   return mask
-end
-
---------------------------------------------------------------------------------
--- function: jitter bbox
-function DataSampler:jitterBox(box)
-  local x, y, w, h = box[1], box[2], box[3], box[4]
-  local xc, yc = x+w/2, y+h/2
-  local maxDim = math.max(w,h)
-  local scale = log2(maxDim/self.objSz)
-  local s = scale + torch.uniform(-self.scale,self.scale)
-  xc = xc + torch.uniform(-self.shift,self.shift)*2^s
-  yc = yc + torch.uniform(-self.shift,self.shift)*2^s
-  w, h = self.wSz*2^s, self.wSz*2^s
-  return {xc-w/2, yc-h/2,w,h}
-end
-
---------------------------------------------------------------------------------
---function: posSampling: do positive sampling
-function DataSampler:posSamplingBB(bb)
-  local r = math.random(1,#bb.scales)
-  local scale = bb.scales[r]
-  r=torch.random(1,#bb[scale])
-  local x,y = bb[scale][r][1], bb[scale][r][2]
-  return x,y,scale
-end
-
---------------------------------------------------------------------------------
---function: negSampling: do negative sampling
-function DataSampler:negSamplingBB(bb,w0,h0)
-  local x,y,scale
-  local negSample,c = false,0
-  while not negSample and c < 100 do
-    local r = math.random(1,#self.scales)
-    scale = self.scales[r]
-    x,y = math.random(1,w0*2^scale),math.random(1,h0*2^scale)
-    negSample = true
-    for s = -10,10 do
-      local ss = scale+s*self.scale
-      if bb[ss] then
-        for _,c in pairs(bb[ss]) do
-          local dist = math.sqrt(math.pow(x-c[1],2)+math.pow(y-c[2],2))
-          if dist < 3*self.shift then
-            negSample = false
-            break
-          end
-        end
-      end
-      if negSample == false then break end
-    end
-    c=c+1
-  end
-   return x,y,scale
 end
 
 return DataSampler

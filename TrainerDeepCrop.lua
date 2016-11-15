@@ -42,8 +42,8 @@ function Trainer:__init(model, criterion, config)
 
   -- meters
   self.lossmeter  = LossMeter()
-  self.trainmaskmeter  = IouMeter(0.5,config.maxload*config.batch)
-  self.testmaskmeter  = IouMeter(0.5,config.testmaxload*config.batch)
+  self.trainmaskmeter  = IouMeter(0,config.maxload*config.batch)
+  self.testmaskmeter  = IouMeter(0,config.testmaxload*config.batch)
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -71,11 +71,8 @@ function Trainer:train(epoch, dataloader)
     -- copy samples to the GPU
     self:copySamples(sample)
 
-    local model, params, feval, optimState
-    model, params = self.combinedNet, self.pm
-    feval,optimState = fevalmask, self.optimState.mask
     local status, outputs = pcall(
-        function() return model:forward(self.inputs) end)
+        function() return self.combinedNet:forward(self.inputs) end)
     if not status then
       print('[train] Error during forward pass!!! ')
       print(outputs)
@@ -83,14 +80,14 @@ function Trainer:train(epoch, dataloader)
     else
       self.trainmaskmeter:add(outputs:view(self.labels:size()),self.labels)
       local lossbatch = self.criterion:forward(outputs, self.labels)
-      model:zeroGradParameters()
-
-      local gradOutputs = self.criterion:backward(outputs, self.labels)
-      model:backward(self.inputs, gradOutputs)
+      
+      self.combinedNet:zeroGradParameters()
+      local gradOutputs = self.criterion:backward(outputs, self.labels):mul(self.inputs:size(1))
+      self.combinedNet:backward(self.inputs, gradOutputs)
 
       -- optimize
       optim.sgd(fevalfeatures, self.pt, self.optimState.features)
-      optim.sgd(feval, params, optimState)
+      optim.sgd(fevalmask, self.pm, self.optimState.mask)
 
       -- update loss
       self.lossmeter:add(lossbatch)
@@ -102,7 +99,7 @@ function Trainer:train(epoch, dataloader)
         image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
         labelSize = self.labels[1]:size()
         image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0.5))
+        image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0))
         print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
@@ -156,7 +153,7 @@ function Trainer:test(epoch, dataloader)
         image.save(string.format('./samples/test/test_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
         labelSize = self.labels[1]:size()
         image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0.5))
+        image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0))
         print(string.format('[test] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
