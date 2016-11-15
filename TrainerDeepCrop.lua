@@ -129,7 +129,8 @@ local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
   self.testIouMeter:reset()
-
+  
+  local timer = torch.Timer()
   print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if n%10==0 then
