@@ -87,6 +87,8 @@ config.rundir = cmd:string(
 
 print(string.format('| running in directory %s', config.rundir))
 os.execute(string.format('mkdir -p %s',config.rundir))
+os.execute(string.format('mkdir -p %s/samples/train',config.rundir))
+os.execute(string.format('mkdir -p %s/samples/test',config.rundir))
 
 --------------------------------------------------------------------------------
 -- network and criterion
@@ -110,42 +112,36 @@ end
 local trainer = Trainer(model, criterion, config)
 --------------------------------------------------------------------------------
 -- do it
-local trainLoss = {}
 local trainLossStr = '1'
-local testLoss = {}
 local testLossStr = '1'
-
-local trainError = {}
-local trainErroStr = '1'
-local testError = {}
-local testErroStr = '1'
+local trainErrorStr = '1'
+local testErrorStr = '1'
 
 epoch = epoch or 1
 for i = 1, config.maxepoch do
   trainer:train(epoch,trainLoader)
 
-  trainLoss[i] = trainer.lossmeter:value()
-  trainLossStr = string.format('%s,%f',trainErroStr,trainLoss[i])
-  trainError[i] = 1-trainer.trainIouMeter:value('0.7')
-  trainErroStr = string.format('%s,%f',trainErroStr,trainError[i])
+  trainLossStr = string.format('%s,%f',trainLossStr,trainer.lossmeter:value())
+  trainErrorStr = string.format('%s,%f',trainErrorStr,1-trainer.trainIouMeter:value('0.7'))
+  print('| Train loss:')
+  print(trainLossStr)
+  print('| Train loss:')
+  print(trainErroStr)
 
   if i%2 == 0 then 
     trainer:test(epoch,valLoader) 
 
-    testLoss[i] = trainer.lossmeter:value()
-    testLossStr = string.format('%s,%f',trainErroStr,testLoss[i])
-    testError[i/2] = 1-trainer.testIouMeter:value('0.7')
-    testErroStr = string.format('%s,%f',testErroStr,testError[i/2])
+    testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.testIouMeter:value('0.7'))
+    print('| Test error:')
+    print(trainErroStr)
   end
 
   epoch = epoch + 1
 end
 print('| training finished')
 print('| Train loss:')
-print(testLossStr)
+print(trainLossStr)
 print('| Train loss:')
 print(trainErroStr)
-print('| Test loss:')
-print(testLossStr)
 print('| Test error:')
 print(trainErroStr)
