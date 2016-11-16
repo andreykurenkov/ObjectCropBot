@@ -92,7 +92,7 @@ function DataSampler:maskSampling()
       local annid = annIds[torch.random(annIds:size(1))]
       ann = self.coco:loadAnns(annid)[1]
   end
-  local bbox = ann.bbox --self:jitterBox(ann.bbox)
+  local bbox = self:jitterBox(ann.bbox)
   local imgName = self.coco:loadImgs(ann.image_id)[1].file_name
   -- input
   local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
@@ -225,6 +225,21 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   mask:copy(image.scale(mo,sz,sz):gt(0.5))
 
   return mask
+end
+
+
+--------------------------------------------------------------------------------
+-- function: jitter bbox
+function DataSampler:jitterBox(box)
+  local x, y, w, h = box[1], box[2], box[3], box[4]
+  local xc, yc = x+w/2, y+h/2
+  local maxDim = math.max(w,h)
+  local scale = log2(maxDim/self.objSz)
+  local s = scale + torch.uniform(-self.scale,self.scale)
+  xc = xc + torch.uniform(-self.shift,self.shift)*2^s
+  yc = yc + torch.uniform(-self.shift,self.shift)*2^s
+  w, h = self.wSz*2^s, self.wSz*2^s
+  return {xc-w/2, yc-h/2,w,h}
 end
 
 return DataSampler
