@@ -87,6 +87,8 @@ config.rundir = cmd:string(
 
 print(string.format('| running in directory %s', config.rundir))
 os.execute(string.format('mkdir -p %s',config.rundir))
+os.execute(string.format('mkdir -p %s/samples/train',config.rundir))
+os.execute(string.format('mkdir -p %s/samples/test',config.rundir))
 
 --------------------------------------------------------------------------------
 -- network and criterion

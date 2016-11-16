@@ -93,13 +93,13 @@ function Trainer:train(epoch, dataloader)
       self.lossmeter:add(lossbatch)
 
       if n<4 or n%500==0 then
-        image.save(string.format('./samples/train/train_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-        image.save(string.format('./samples/train/train_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
-        image.save(string.format('./samples/train/train_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
-        image.save(string.format('./samples/train/train_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
+        image.save(string.format('%%s/samples/train/train_%d_%d_in_img.jpg',config.rundir,epoch,n),self.inputs[1]:select(4,1))
+        image.save(string.format('%%s/samples/train/train_%d_%d_in_dist.jpg',config.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
+        image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',config.rundir,epoch,n),self.inputs[1][2]:select(3,2))
+        image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',config.rundir,epoch,n),self.inputs[1][3]:select(3,2))
         labelSize = self.labels[1]:size()
-        image.save(string.format('./samples/train/train_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('./samples/train/train_%d_%d_out.jpg',epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0))
+        image.save(string.format('%s/samples/train/train_%d_%d_labels.jpg',config.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+        image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',config.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0))
         print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
@@ -149,13 +149,13 @@ function Trainer:test(epoch, dataloader)
       cutorch.synchronize()
    
       if n<4 then
-        image.save(string.format('./samples/test/test_%d_%d_in_img.jpg',epoch,n),self.inputs[1]:select(4,1))
-        image.save(string.format('./samples/test/test_%d_%d_in_dist.jpg',epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
-        image.save(string.format('./samples/test/test_%d_%d_in_dist2.jpg',epoch,n),self.inputs[1][2]:select(3,2))
-        image.save(string.format('./samples/test/test_%d_%d_in_dist3.jpg',epoch,n),self.inputs[1][3]:select(3,2))
+        image.save(string.format('%s/samples/test/test_%d_%d_in_img.jpg',config.rundir,epoch,n),self.inputs[1]:select(4,1))
+        image.save(string.format('%s/samples/test/test_%d_%d_in_dist.jpg',config.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
+        image.save(string.format('%s/samples/test/test_%d_%d_in_dist2.jpg',config.rundir,epoch,n),self.inputs[1][2]:select(3,2))
+        image.save(string.format('%s/samples/test/test_%d_%d_in_dist3.jpg',config.rundir,epoch,n),self.inputs[1][3]:select(3,2))
         labelSize = self.labels[1]:size()
-        image.save(string.format('./samples/test/test_%d_%d_labels.jpg',epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('./samples/test/test_%d_%d_out.jpg',epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0))
+        image.save(string.format('%s/samples/test/test_%d_%d_labels.jpg',config.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+        image.save(string.format('%s/samples/test/test_%d_%d_out.jpg',config.rundir,epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0))
         print(string.format('[test] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
