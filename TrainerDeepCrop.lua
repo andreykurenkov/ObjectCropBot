@@ -99,8 +99,9 @@ function Trainer:train(epoch, dataloader)
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][3]:select(3,2))
         labelSize = self.labels[1]:size()
         image.save(string.format('%s/samples/train/train_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0))
-        print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
+        smallOut = self.model.maskBranch.modules[2].output
+        image.save(string.format('%s/samples/train/train_%d_%d_out_small.jpg',self.rundir,epoch,n),smallOut:resize(1,self.config.oSz,self.config.oSz))
+        image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]))
       end
     end
   end
@@ -156,7 +157,6 @@ function Trainer:test(epoch, dataloader)
         labelSize = self.labels[1]:size()
         image.save(string.format('%s/samples/test/test_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
         image.save(string.format('%s/samples/test/test_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0))
-        print(string.format('[test] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
   end
