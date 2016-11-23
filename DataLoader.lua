@@ -62,9 +62,11 @@ function DataLoader:run()
       threads:addjob(
         function(bsz)
           local inputs, labels
+          local head
+          if torch.uniform() > hfreq then head = 1 else head = 2 end
           local i = 1
           while i<=bsz do
-            local input, label = _G.ds:get()
+            local input, label = _G.ds:get(head)
             if input==nil then
              -- Skip this one
             else

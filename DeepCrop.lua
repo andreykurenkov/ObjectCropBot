@@ -32,9 +32,13 @@ function DeepCrop:__init(config)
 
   -- create mask head
   self.maskBranch = self:createMaskBranch(config)
+  
+-- create mask head
+  self.scoreBranch = self:createScoreBranch(config)
 
-  -- combine into a single model
-  self.combinedModel = self:createCombinedModel(config)
+  -- combine into single models
+  self.combinedMaskModel = self:createCombinedMaskModel(config)
+  self.combinedScoreModel = self:createCombinedScoreModel(config)
 
   -- number of parameters
   local npt,nps,npm = 0,0,0
@@ -115,8 +119,22 @@ function DeepCrop:createMaskBranch(config)
 end
 
 --------------------------------------------------------------------------------
--- function: create full model
-function DeepCrop:createCombinedModel(config)
+-- function: create score branch
+function DeepCrop:createScoreBranch(config)
+  local scoreBranch = nn.Sequential()
+  scoreBranch:add(nn.Dropout(.5))
+  scoreBranch:add(nn.Linear(512,1024))
+  scoreBranch:add(nn.Threshold(0, 1e-6))
+
+  scoreBranch:add(nn.Dropout(.5))
+  scoreBranch:add(nn.Linear(1024,1))
+
+  return scoreBranch
+end
+
+--------------------------------------------------------------------------------
+-- function: create full mask model
+function DeepCrop:createCombinedMaskModel(config)
   local combinedModel = nn.Sequential()
   local inputBranches = nn.Parallel(5,2)
   inputBranches:add(self.featuresBranch)
@@ -138,6 +156,19 @@ function DeepCrop:createCombinedModel(config)
   return combinedModel
 end
 
+--------------------------------------------------------------------------------
+-- function: create full score model
+function DeepCrop:createCombinedScoreModel(config)
+  local combinedModel = nn.Sequential()
+  local inputBranches = nn.Parallel(5,2)
+  inputBranches:add(self.featuresBranch)
+  inputBranches:add(self.distanceBranch)
+  combinedModel:add(inputBranches)
+  combinedModel:add(self.scoreBranch)
+  combinedModel = combinedModel:cuda()
+  
+  return combinedModel
+end
 --------------------------------------------------------------------------------
 -- function: training
 function DeepCrop:training()

@@ -46,16 +46,57 @@ function DataSampler:__init(config,split)
   self.catIds = self.coco:getCatIds()
   self.nImages = self.imgIds:size(1)
 
-  --self.imgWindow = image.window()
-  --self.lblWindow = image.window()
-  --self.distWindow = image.window()
-
   if split == 'train' then self.__size  = config.maxload*config.batch
   elseif split == 'val' then self.__size = config.testmaxload*config.batch end
+
+  
+  if config.hfreq > 0 then
+    self.scales = {} -- scale range for score sampling
+    for scale = -3,2,.25 do table.insert(self.scales,scale) end
+    self:createBBstruct(self.objSz,config.scale)
+  end
 
   collectgarbage()
 end
 local function log2(x) return math.log(x)/math.log(2) end
+
+--------------------------------------------------------------------------------
+-- function: create BB struct of objects for score sampling
+-- each key k contain the scale and bb information of all annotations of
+-- image k
+function DataSampler:createBBstruct(objSz,scale)
+  local bbStruct = tds.Vec()
+
+  for i = 1, self.nImages do
+    local annIds = self.coco:getAnnIds({imgId=self.imgIds[i]})
+    local bbs = {scales = {}}
+    if annIds:dim() ~= 0 then
+      for i = 1,annIds:size(1) do
+        local annId = annIds[i]
+        local ann = self.coco:loadAnns(annId)[1]
+        local bbGt = ann.bbox
+        local x0,y0,w,h = bbGt[1],bbGt[2],bbGt[3],bbGt[4]
+        local xc,yc, maxDim = x0+w/2,y0+h/2, math.max(w,h)
+
+        for s = -32,32,1 do
+          if maxDim > objSz*2^((s-1)*scale) and
+            maxDim <= objSz*2^((s+1)*(scale)) then
+            local ss = -s*scale
+            local xcS,ycS = xc*2^ss,yc*2^ss
+            if not bbs[ss] then
+              bbs[ss] = {}; table.insert(bbs.scales,ss)
+            end
+            table.insert(bbs[ss],{xcS,ycS,category_id=ann.category})
+            break
+          end
+        end
+      end
+    end
+    bbStruct:insert(tds.Hash(bbs))
+  end
+  collectgarbage()
+  self.bbStruct = bbStruct
+end
 
 --------------------------------------------------------------------------------
 -- function: get size of epoch
@@ -65,16 +106,21 @@ end
 
 --------------------------------------------------------------------------------
 -- function: get a sample
-function DataSampler:get()
+function DataSampler:get(headSampling)
   local input,label
-  input, label = self:maskSampling()
+  
+  if headSampling == 1 then -- sample masks
+    input, label = self:maskSampling()
+  else -- sample score
+    input,label = self:scoreSampling()
+  end
 
   if input==nil then
       return nil,nil
   end
+
   -- normalize input
   for i=1,3 do input:select(4,1):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
-  --for i=1,3 do input:select(4,2):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
 
   return input,label
 end
@@ -110,7 +156,7 @@ function DataSampler:maskSampling()
   lbl:mul(2):add(-1)
   --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
-  local imgInp, distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
+  local imgInp, distanceInp = self:calcDistanceInp(imgInp, lbl)
   if distanceInp == nil then
       return nil, nil
   end
@@ -119,35 +165,82 @@ function DataSampler:maskSampling()
   return combinedInp, lbl
 end
 
+--------------------------------------------------------------------------------
+-- function: score head sampler
+local imgPad = torch.Tensor()
+function DataSampler:scoreSampling(cat,imgId)
+  local idx,bb
+  repeat
+    idx = torch.random(1,self.nImages)
+    bb = self.bbStruct[idx]
+  until #bb.scales ~= 0
+
+  local imgId = self.imgIds[idx]
+  local imgName = self.coco:loadImgs(imgId)[1].file_name
+  local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
+  local img = image.load(pathImg,3)
+  local h,w = img:size(2),img:size(3)
+
+  -- sample central pixel of BB to be used
+  local x,y,scale
+  local lbl = torch.Tensor(1)
+  if torch.uniform() > .5 then
+    x,y,scale = self:posSamplingBB(bb)
+    lbl:fill(1)
+  else
+    x,y,scale = self:negSamplingBB(bb,w,h)
+    lbl:fill(-1)
+  end
+
+  local s = 2^-scale
+  x,y  = math.min(math.max(x*s,1),w), math.min(math.max(y*s,1),h)
+  local isz = math.max(self.wSz*s,10)
+  local bw =isz/2
+
+  --pad/crop/rescale
+  imgPad:resize(3,h+2*bw,w+2*bw):fill(.5)
+  imgPad:narrow(2,bw+1,h):narrow(3,bw+1,w):copy(img)
+  local inp = imgPad:narrow(2,y,isz):narrow(3,x,isz)
+  inp = image.scale(inp,self.wSz,self.wSz)
+
+  local imgInp, distanceInp = self:calcDistanceInp(inp, lbl)
+  if distanceInp == nil then
+      return nil, nil
+  end
+  --Create combine 3 x wSz x wSz input x 2
+  --Create combine 3 x wSz x wSz input x 2
+  local combinedInp = torch.cat(imgInp,distanceInp,4)
+  return combinedInp, lbl
+end
 
 --------------------------------------------------------------------------------
 -- function: generate 'click' inside bounded object and get additional inputs for it
-function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
-  local distanceInp = torch.FloatTensor(3,wSz,wSz)
+function DataSampler:calcDistanceInp(imgInp, lbl)
+  local distanceInp = torch.FloatTensor(3,self.wSz,self.wSz)
 
   -- Sample a 'crop click' pixel
   local cropClick
   count = lbl:gt(0):sum()
-  if count==1 or count<(wSz/8) then
+  if count==1 or count<(self.wSz/8) then
     --- Skip samples with no or very small crop borders
     return nil, nil
   else
-    flatLbl = lbl:reshape(gSz^2)
-    idx = torch.linspace(0,gSz^2-1,gSz^2)[flatLbl:gt(0)]
+    flatLbl = lbl:reshape(self.gSz^2)
+    idx = torch.linspace(0,self.gSz^2-1,self.gSz^2)[flatLbl:gt(0)]
     cropClick = math.random(count)
   end
   clickIdx = math.floor(idx[cropClick])
-  cropClickX = math.floor((clickIdx%gSz+1)*wSz/gSz)
-  cropClickY = math.floor(math.floor(clickIdx/gSz+1)*wSz/gSz)
+  cropClickX = math.floor((clickIdx%gSz+1)*self.wSz/self.gSz)
+  cropClickY = math.floor(math.floor(clickIdx/self.gSz+1)*self.wSz/self.gSz)
   imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0,0,0})
 
   -- Calculate location difference from click pixel, via 2 norm
-  pixels = torch.Tensor(torch.linspace(1,wSz,wSz))
-  pixelsX = pixels:reshape(wSz,1):repeatTensor(1,wSz)
-  pixelsY = pixels:reshape(1,wSz):repeatTensor(wSz,1)
+  pixels = torch.Tensor(torch.linspace(1,self.wSz,self.wSz))
+  pixelsX = pixels:reshape(wSz,1):repeatTensor(1,self.wSz)
+  pixelsY = pixels:reshape(1,wSz):repeatTensor(self.wSz,1)
   coords = pixelsX:cat(pixelsY,3):transpose(1,3)
-  clickXs = torch.Tensor({cropClickX}):repeatTensor(wSz,wSz)
-  clickYs = torch.Tensor({cropClickY}):repeatTensor(wSz,wSz)
+  clickXs = torch.Tensor({cropClickX}):repeatTensor(self.wSz,self.wSz)
+  clickYs = torch.Tensor({cropClickY}):repeatTensor(self.wSz,self.wSz)
   clickCoords = clickXs:cat(clickYs,3):transpose(1,3)
   dists = (coords-clickCoords):norm(2,1)
   dists = (dists:div(dists:max())-0.5)*2
@@ -155,7 +248,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
 
   -- Calculate rgb difference from click pixel, via 2 nom
   local pixel = imgInp[{{1,3},cropClickY,cropClickX}]
-  pixels = pixel:reshape(1,1,3):repeatTensor(wSz,wSz,1):transpose(1,3)
+  pixels = pixel:reshape(1,1,3):repeatTensor(self.wSz,self.wSz,1):transpose(1,3)
   distanceInp[2] = (imgInp-pixels):norm(2,1)
   
   -- Calculate lum difference from click pixel, via 2 nom
@@ -240,6 +333,45 @@ function DataSampler:jitterBox(box)
   yc = yc + torch.uniform(-self.shift,self.shift)*2^s
   w, h = self.wSz*2^s, self.wSz*2^s
   return {xc-w/2, yc-h/2,w,h}
+end
+
+
+--------------------------------------------------------------------------------
+--function: posSampling: do positive sampling
+function DataSampler:posSamplingBB(bb)
+  local r = math.random(1,#bb.scales)
+  local scale = bb.scales[r]
+  r=torch.random(1,#bb[scale])
+  local x,y = bb[scale][r][1], bb[scale][r][2]
+  return x,y,scale
+end
+
+--------------------------------------------------------------------------------
+--function: negSampling: do negative sampling
+function DataSampler:negSamplingBB(bb,w0,h0)
+  local x,y,scale
+  local negSample,c = false,0
+  while not negSample and c < 100 do
+    local r = math.random(1,#self.scales)
+    scale = self.scales[r]
+    x,y = math.random(1,w0*2^scale),math.random(1,h0*2^scale)
+    negSample = true
+    for s = -10,10 do
+      local ss = scale+s*self.scale
+      if bb[ss] then
+        for _,c in pairs(bb[ss]) do
+          local dist = math.sqrt(math.pow(x-c[1],2)+math.pow(y-c[2],2))
+          if dist < 3*self.shift then
+            negSample = false
+            break
+          end
+        end
+      end
+      if negSample == false then break end
+    end
+    c=c+1
+  end
+   return x,y,scale
 end
 
 return DataSampler
