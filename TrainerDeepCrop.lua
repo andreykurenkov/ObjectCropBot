@@ -42,8 +42,8 @@ function Trainer:__init(model, criterion, config)
 
   -- meters
   self.lossmeter  = LossMeter()
-  self.trainIouMeter  = IouMeter(0,config.maxload*config.batch)
-  self.testIouMeter  = IouMeter(0,config.testmaxload*config.batch)
+  self.trainIouMeter  = IouMeter(0.5,config.maxload*config.batch)
+  self.testIouMeter  = IouMeter(0.5,config.testmaxload*config.batch)
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -65,7 +65,7 @@ function Trainer:train(epoch, dataloader)
   local fevalmask  = function() return self.criterion.output,   self.gm end
   print(string.format('[train] Starting training epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
-    if n%10==0 then
+    if self.config.verbose and n%10==0 then
         print(string.format('[train] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n,self.lossmeter:value()))
     end
     -- copy samples to the GPU
@@ -92,7 +92,7 @@ function Trainer:train(epoch, dataloader)
       -- update loss
       self.lossmeter:add(lossbatch)
 
-      if n<4 or n%500==0 then
+      if self.config.verbose and (n<4 or n%500==0) then
         image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
@@ -133,7 +133,7 @@ function Trainer:test(epoch, dataloader)
   local timer = torch.Timer()
   print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
-    if n%10==0 then
+    if self.config.verbose and n%10==0 then
         print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.testIouMeter:value('mean')))
     end
     -- copy input and target to the GPU
@@ -148,7 +148,7 @@ function Trainer:test(epoch, dataloader)
       self.testIouMeter:add(outputs:view(self.labels:size()),self.labels)
       cutorch.synchronize()
    
-      if n<4 then
+      if self.config.verbose and n<4 then
         image.save(string.format('%s/samples/test/test_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))

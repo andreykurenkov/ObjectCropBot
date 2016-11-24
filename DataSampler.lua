@@ -46,10 +46,6 @@ function DataSampler:__init(config,split)
   self.catIds = self.coco:getCatIds()
   self.nImages = self.imgIds:size(1)
 
-  --self.imgWindow = image.window()
-  --self.lblWindow = image.window()
-  --self.distWindow = image.window()
-
   if split == 'train' then self.__size  = config.maxload*config.batch
   elseif split == 'val' then self.__size = config.testmaxload*config.batch end
 
@@ -100,7 +96,6 @@ function DataSampler:maskSampling()
   local h, w = inp:size(2), inp:size(3)
   -- inp = self:cropTensor(inp, bbox, 0.5)
   local imgInp = image.scale(inp, wSz, wSz)
-  --image.display{input=imgInp,gui=false,window=self.imgWindow}
 
   -- label
   local iSzR = iSz*(bbox[3]/wSz)
@@ -108,7 +103,6 @@ function DataSampler:maskSampling()
   local bboxInpSz = {xc-iSzR/2,yc-iSzR/2,iSzR,iSzR}
   local lbl = self:cropMask(ann, bboxInpSz, h, w, gSz)
   lbl:mul(2):add(-1)
-  --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
   local imgInp, distanceInp = self:calcDistanceInp(imgInp, lbl, gSz, wSz)
   if distanceInp == nil then
