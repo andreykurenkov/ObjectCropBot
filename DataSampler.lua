@@ -49,7 +49,6 @@ function DataSampler:__init(config,split)
   if split == 'train' then self.__size  = config.maxload*config.batch
   elseif split == 'val' then self.__size = config.testmaxload*config.batch end
 
-  
   if config.hfreq > 0 then
     self.scales = {} -- scale range for score sampling
     for scale = -3,2,.25 do table.insert(self.scales,scale) end
@@ -146,7 +145,6 @@ function DataSampler:maskSampling()
   local h, w = inp:size(2), inp:size(3)
   inp = self:cropTensor(inp, bbox, 0.5)
   local imgInp = image.scale(inp, wSz, wSz)
-  --image.display{input=imgInp,gui=false,window=self.imgWindow}
 
   -- label
   local iSzR = iSz*(bbox[3]/wSz)
@@ -154,7 +152,6 @@ function DataSampler:maskSampling()
   local bboxInpSz = {xc-iSzR/2,yc-iSzR/2,iSzR,iSzR}
   local lbl = self:cropMask(ann, bboxInpSz, h, w, gSz)
   lbl:mul(2):add(-1)
-  --image.display{input=scaledLbl,gui=false,window=self.lblWindow}
 
   local imgInp, distanceInp = self:calcDistanceInp(imgInp, lbl)
   if distanceInp == nil then
@@ -208,7 +205,6 @@ function DataSampler:scoreSampling(cat,imgId)
       return nil, nil
   end
   --Create combine 3 x wSz x wSz input x 2
-  --Create combine 3 x wSz x wSz input x 2
   local combinedInp = torch.cat(imgInp,distanceInp,4)
   return combinedInp, lbl
 end
@@ -230,14 +226,14 @@ function DataSampler:calcDistanceInp(imgInp, lbl)
     cropClick = math.random(count)
   end
   clickIdx = math.floor(idx[cropClick])
-  cropClickX = math.floor((clickIdx%gSz+1)*self.wSz/self.gSz)
-  cropClickY = math.floor(math.floor(clickIdx/self.gSz+1)*self.wSz/self.gSz)
+  cropClickX = math.floor((clickIdx % self.gSz+1)*self.wSz/self.gSz)
+  cropClickY = math.floor(math.floor(clickIdx / self.gSz+1)*self.wSz/self.gSz)
   imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0,0,0})
 
   -- Calculate location difference from click pixel, via 2 norm
   pixels = torch.Tensor(torch.linspace(1,self.wSz,self.wSz))
-  pixelsX = pixels:reshape(wSz,1):repeatTensor(1,self.wSz)
-  pixelsY = pixels:reshape(1,wSz):repeatTensor(self.wSz,1)
+  pixelsX = pixels:reshape(self.wSz,1):repeatTensor(1,self.wSz)
+  pixelsY = pixels:reshape(1,self.wSz):repeatTensor(self.wSz,1)
   coords = pixelsX:cat(pixelsY,3):transpose(1,3)
   clickXs = torch.Tensor({cropClickX}):repeatTensor(self.wSz,self.wSz)
   clickYs = torch.Tensor({cropClickY}):repeatTensor(self.wSz,self.wSz)

@@ -19,7 +19,8 @@ function Trainer:__init(model, criterion, config)
   -- training params
   self.config = config
   self.model = model
-  self.combinedNet = model.combinedModel
+  self.maskNet = model.maskModel
+  self.scoreNet = model.scoreModel
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
@@ -42,8 +43,7 @@ function Trainer:__init(model, criterion, config)
 
   -- meters
   self.lossmeter  = LossMeter()
-  self.trainIouMeter  = IouMeter(0,config.maxload*config.batch)
-  self.testIouMeter  = IouMeter(0,config.testmaxload*config.batch)
+  self.testIouMeter  = IouMeter(0.5,config.testmaxload*config.batch)
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -56,43 +56,54 @@ end
 function Trainer:train(epoch, dataloader)
   self.model:training()
   self:updateScheduler(epoch)
-  self.trainIouMeter:reset()
   self.lossmeter:reset()
 
   local timer = torch.Timer()
 
   local fevalfeatures = function() return self.model.featuresBranch.output, self.gt end
   local fevalmask  = function() return self.criterion.output,   self.gm end
+  local fevalscore = function() return self.criterion.output, self.gs end
+  
   print(string.format('[train] Starting training epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
-    if n%10==0 then
+    if self.config.verbose and n%10==0 then
         print(string.format('[train] batch %d | s/batch %04.2f | loss: %07.5f ',n,timer:time().real/n,self.lossmeter:value()))
     end
     -- copy samples to the GPU
     self:copySamples(sample)
 
+    -- forward/backward
+    local model, params, feval, optimState
+    if sample.head == 1 then
+      model, params = self.maskNet, self.pm
+      feval,optimState = fevalmask, self.optimState.mask
+    else
+      model, params = self.scoreNet, self.ps
+      feval,optimState = fevalscore, self.optimState.score
+    end
+
     local status, outputs = pcall(
-        function() return self.combinedNet:forward(self.inputs) end)
+        function() return model:forward(self.inputs) end)
     if not status then
       print('[train] Error during forward pass!!! ')
       print(outputs)
       --print(debug.traceback())
     else
-      self.trainIouMeter:add(outputs:view(self.labels:size()),self.labels)
       local lossbatch = self.criterion:forward(outputs, self.labels)
       
-      self.combinedNet:zeroGradParameters()
-      local gradOutputs = self.criterion:backward(outputs, self.labels):mul(self.inputs:size(1))
-      self.combinedNet:backward(self.inputs, gradOutputs)
+      model:zeroGradParameters()
+      local gradOutputs = self.criterion:backward(outputs, self.labels)
+      if sample.head == 1 then gradOutputs:mul(self.inputs:size(1)) end
+      model:backward(self.inputs, gradOutputs)
 
       -- optimize
-      optim.sgd(fevalfeatures, self.pt, self.optimState.features)
-      optim.sgd(fevalmask, self.pm, self.optimState.mask)
+      optim.sgd(fevalfeatures, self.pt, self.optimState.trunk)
+      optim.sgd(feval, params, optimState)
 
       -- update loss
       self.lossmeter:add(lossbatch)
 
-      if n<4 or n%500==0 then
+      if self.config.verbose and (n<4 or n%500==0) then
         image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
@@ -128,27 +139,36 @@ end
 local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
-  self.testIouMeter:reset()
+  self.maskmeter:reset()
+  self.scoremeter:reset()
   
   local timer = torch.Timer()
   print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
-    if n%10==0 then
+    if self.config.verbose and n%10==0 then
         print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.testIouMeter:value('mean')))
     end
     -- copy input and target to the GPU
     self:copySamples(sample)
+    -- forward/backward
+    local model
+    if sample.head == 1 then
+      model, meter = self.maskNet, self.maskmeter
+    else
+      model, meter = self.scoreNet, self.scoremeter
+    end
+
     local status, outputs = pcall(
-        function() return self.combinedNet:forward(self.inputs) end)
+        function() return model:forward(self.inputs) end)
     if not status then
       print('[test] Error during forward pass!!! ')
       print(outputs)
       --print(debug.traceback())
     else
-      self.testIouMeter:add(outputs:view(self.labels:size()),self.labels)
+      meter:add(outputs:view(self.labels:size()),self.labels)
       cutorch.synchronize()
    
-      if n<4 then
+      if self.config.verbose and n<4 then
         image.save(string.format('%s/samples/test/test_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
@@ -163,7 +183,7 @@ function Trainer:test(epoch, dataloader)
   self.model:training()
 
   -- check if bestmodel so far
-  local z,bestmodel = self.testIouMeter:value('0.7')
+  local z,bestmodel = self.maskmeter:value('0.7')
   if z > maxacc then
     torch.save(string.format('%s/bestmodel.t7', self.rundir),self.modelsv)
     maxacc = z

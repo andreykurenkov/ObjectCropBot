@@ -35,10 +35,12 @@ cmd:option('-testmaxload', 500, 'max number of testing batches')
 cmd:option('-maxepoch', 300, 'max number of training epochs')
 cmd:option('-shift', 16, 'shift jitter allowed')
 cmd:option('-scale', .25, 'scale jitter allowed')
+cmd:option('-hfreq', 0.5, 'mask/score head sampling frequency')
 cmd:option('-iSz', 160, 'input size')
 cmd:option('-oSz', 56, 'output size')
 cmd:option('-gSz', 112, 'ground truth size')
-cmd:option('-scratch', false, 'train DeepMask with randomly initialize weights')
+cmd:option('-scratch', false, 'train DeepCrop with randomly initialize weights')
+cmd:option('-verbose', true, 'train DeepCrop with extra output')
 cmd:text()
 cmd:text('SharpMask Options:')
 cmd:option('-dm', '', 'path to trained deepmask (if dm, then train SharpMask)')
@@ -115,7 +117,6 @@ local trainer = Trainer(model, criterion, config)
 --------------------------------------------------------------------------------
 -- do it
 local trainLossStr = '1'
-local testLossStr = '1'
 local trainErrorStr = '1'
 local testErrorStr = '1'
 
@@ -125,17 +126,23 @@ for i = 1, config.maxepoch do
 
   trainLossStr = string.format('%s,%f',trainLossStr,trainer.lossmeter:value())
   trainErrorStr = string.format('%s,%f',trainErrorStr,1-trainer.trainIouMeter:value('0.7'))
-  print('| Train loss:')
-  print(trainLossStr)
-  print('| Train loss:')
-  print(trainErroStr)
+
+  if config.verbose then
+     print('| Train loss:')
+     print(trainLossStr)
+     print('| Train error:')
+     print(trainErroStr)
+  end
 
   if i%2 == 0 then 
     trainer:test(epoch,valLoader) 
 
     testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.testIouMeter:value('0.7'))
-    print('| Test error:')
-    print(trainErroStr)
+
+    if config.verbose then
+      print('| Test error:')
+      print(trainErrorStr)
+    end
   end
 
   epoch = epoch + 1
@@ -143,7 +150,5 @@ end
 print('| training finished')
 print('| Train loss:')
 print(trainLossStr)
-print('| Train loss:')
-print(trainErroStr)
 print('| Test error:')
-print(trainErroStr)
+print(testErrorStr)
