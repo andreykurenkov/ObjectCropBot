@@ -82,8 +82,8 @@ end
 -- directory to save log and model
 local pathsv = trainSm and 'sharpmask/exp' or 'deepcrop/exp'
 config.rundir = cmd:string(
-  paths.concat(config.reload=='' and config.rundir or config.reload, pathsv),
-  config,{rundir=true, gpu=true, reload=true, datadir=true, dm=true} --ignore
+  paths.concat(config.rundir, pathsv),
+  config,{rundir=true, gpu=true, reload=true, datadir=true, dm=true} 
 )
 
 print(string.format('| running in directory %s', config.rundir))
@@ -123,16 +123,16 @@ for i = 1, config.maxepoch do
   trainer:train(epoch,trainLoader)
 
   trainLossStr = string.format('%s,%f',trainLossStr,trainer.lossmeter:value())
-  trainErrorStr = string.format('%s,%f',trainErrorStr,1-trainer.trainIouMeter:value('0.7'))
+  trainErrorStr = string.format('%s,%f',trainErrorStr,1-trainer.trainIouMeter:value('0.5'))
   print('| Train loss:')
   print(trainLossStr)
   print('| Train loss:')
-  print(trainErroStr)
+  print(trainErrorStr)
 
   if i%2 == 0 then 
     trainer:test(epoch,valLoader) 
 
-    testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.testIouMeter:value('0.7'))
+    testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.testIouMeter:value('0.5'))
     print('| Test error:')
     print(trainErroStr)
   end
@@ -143,6 +143,6 @@ print('| training finished')
 print('| Train loss:')
 print(trainLossStr)
 print('| Train loss:')
-print(trainErroStr)
+print(trainErrorStr)
 print('| Test error:')
-print(trainErroStr)
+print(trainErrorStr)
