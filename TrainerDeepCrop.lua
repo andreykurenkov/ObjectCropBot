@@ -44,7 +44,7 @@ function Trainer:__init(model, criterion, config)
 
   -- meters
   self.lossmeter  = LossMeter()
-  self.testIouMeter  = IouMeter(0.5,config.testmaxload*config.batch)
+  self.maskmeter  = IouMeter(0.5,config.testmaxload*config.batch)
   self.scoremeter = BinaryMeter()
 
   -- log
@@ -148,14 +148,14 @@ end
 local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
-  self.maskmeter:reset()
+  self.testIoumeter:reset()
   self.scoremeter:reset()
   
   local timer = torch.Timer()
   print(string.format('[test] Starting testing epoch of %d batches',dataloader:size()))
   for n, sample in dataloader:run() do
     if self.config.verbose and n%10==0 then
-        print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.testIouMeter:value('mean')))
+        print(string.format('[test] batch %d | s/batch %04.2f | mean: %06.2f ',n,timer:time().real/n,self.maskmeter:value('mean')))
     end
     -- copy input and target to the GPU
     self:copySamples(sample)
@@ -206,8 +206,8 @@ function Trainer:test(epoch, dataloader)
     string.format('[test]  | epoch %05d '..
       '| IoU: mean %06.2f median %06.2f suc@.5 %06.2f | bestmodel %s',
       epoch,
-      self.testIouMeter:value('mean'),self.testIouMeter:value('median'),
-      self.testIouMeter:value('0.5'), self.testIouMeter:value('0.7'),
+      self.maskmeter:value('mean'),self.maskmeter:value('median'),
+      self.maskmeter:value('0.5'), self.maskmeter:value('0.7'),
       bestmodel and '*' or 'x')
   print(logepoch)
   self.log:writeString(string.format('%s\n',logepoch))
