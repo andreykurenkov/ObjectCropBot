@@ -125,13 +125,10 @@ for i = 1, config.maxepoch do
   trainer:train(epoch,trainLoader)
 
   trainLossStr = string.format('%s,%f',trainLossStr,trainer.lossmeter:value())
-  trainErrorStr = string.format('%s,%f',trainErrorStr,1-trainer.trainIouMeter:value('0.7'))
 
   if config.verbose then
      print('| Train loss:')
      print(trainLossStr)
-     print('| Train error:')
-     print(trainErroStr)
   end
 
   if i%2 == 0 then 
