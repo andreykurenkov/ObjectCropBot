@@ -24,7 +24,7 @@ function Trainer:__init(model, criterion, config)
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
-  for k,v in pairs({'features','mask'}) do
+  for k,v in pairs({'features','mask','score'}) do
     self.optimState[v] = {
       learningRate = config.lr,
       learningRateDecay = 0,
@@ -37,6 +37,7 @@ function Trainer:__init(model, criterion, config)
   -- params and gradparams
   self.pt,self.gt = model.featuresBranch:getParameters()
   self.pm,self.gm = model.maskBranch:getParameters()
+  self.ps,self.gs = model.scoreBranch:getParameters()
 
   -- allocate cuda tensors
   self.inputs, self.labels = torch.CudaTensor(), torch.CudaTensor()
@@ -44,6 +45,7 @@ function Trainer:__init(model, criterion, config)
   -- meters
   self.lossmeter  = LossMeter()
   self.testIouMeter  = IouMeter(0.5,config.testmaxload*config.batch)
+  self.scoremeter = BinaryMeter()
 
   -- log
   self.modelsv = {model=model:clone('weight', 'bias'),config=config}
@@ -71,7 +73,6 @@ function Trainer:train(epoch, dataloader)
     end
     -- copy samples to the GPU
     self:copySamples(sample)
-
     -- forward/backward
     local model, params, feval, optimState
     if sample.head == 1 then
@@ -90,7 +91,14 @@ function Trainer:train(epoch, dataloader)
       --print(debug.traceback())
     else
       local lossbatch = self.criterion:forward(outputs, self.labels)
-      
+      if outputs:mean()~=outputs:mean() then
+        print('her!')
+        print(sample.head)
+      end   
+      if lossbatch~=lossbatch  then
+        print('heasdfar!')
+        print(sample.head)
+      end   
       model:zeroGradParameters()
       local gradOutputs = self.criterion:backward(outputs, self.labels)
       if sample.head == 1 then gradOutputs:mul(self.inputs:size(1)) end
@@ -102,15 +110,16 @@ function Trainer:train(epoch, dataloader)
 
       -- update loss
       self.lossmeter:add(lossbatch)
-
       if self.config.verbose and (n<4 or n%500==0) then
         image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
         image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][3]:select(3,2))
-        labelSize = self.labels[1]:size()
-        image.save(string.format('%s/samples/train/train_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]):gt(0))
+        if sample.head==1 then
+          labelSize = self.labels[1]:size()
+          image.save(string.format('%s/samples/train/train_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+           image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]))
+        end
         print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
@@ -173,9 +182,11 @@ function Trainer:test(epoch, dataloader)
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
         image.save(string.format('%s/samples/test/test_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][3]:select(3,2))
-        labelSize = self.labels[1]:size()
-        image.save(string.format('%s/samples/test/test_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-        image.save(string.format('%s/samples/test/test_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]):gt(0))
+        if sample.head==1 then
+          labelSize = self.labels[1]:size()
+          image.save(string.format('%s/samples/test/test_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
+          image.save(string.format('%s/samples/test/test_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(labelSize[1],labelSize[2]))
+        end
         print(string.format('[test] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end
     end
