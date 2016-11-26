@@ -40,7 +40,8 @@ function DataLoader:__init(config, split)
   local threads, sizes = Threads(config.nthreads, main)
   self.threads = threads
   self.__size = sizes[1][1]
-  self.batch = config.batch
+  self.batch = config.batch 
+  self.hfreq = config.hfreq
 end
 
 --------------------------------------------------------------------------------
@@ -60,11 +61,13 @@ function DataLoader:run()
     while idx <= size and threads:acceptsjob() do
       local bsz = math.min(batch, size - idx + 1)
       threads:addjob(
-        function(bsz)
+        function(bsz,hfreq)
           local inputs, labels
+          local head
+          if torch.uniform() > hfreq then head = 1 else head = 2 end
           local i = 1
           while i<=bsz do
-            local input, label = _G.ds:get()
+            local input, label = _G.ds:get(head)
             if input==nil then
              -- Skip this one
             else
@@ -81,10 +84,10 @@ function DataLoader:run()
           end
           collectgarbage()
 
-          return {inputs = inputs, labels = labels}
+          return {inputs = inputs, labels = labels, head = head}
         end,
         function(_sample_) sample = _sample_ end,
-        bsz
+        bsz, self.hfreq
       )
       idx = idx + batch
     end

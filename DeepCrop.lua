@@ -32,9 +32,16 @@ function DeepCrop:__init(config)
 
   -- create mask head
   self.maskBranch = self:createMaskBranch(config)
+  
+  -- create mask head
+  self.scoreBranch = self:createScoreBranch(config)
 
-  -- combine into a single model
-  self.combinedModel = self:createCombinedModel(config)
+  -- create paralelle branch 
+  self.combinedFeatures = self:createCombinedFeatures(config)
+  
+  -- combine into final models
+  self.maskModel = self:createMaskModel(config)
+  self.scoreModel = self:createScoreModel(config)
 
   -- number of parameters
   local npt,nps,npm = 0,0,0
@@ -85,7 +92,7 @@ function DeepCrop:createFeaturesBranch(config)
 
   --Needed for backward step from parallel container
   featuresBranch:add(nn.Copy(nil,nil,true))
-  return featuresBranch
+  return featuresBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
@@ -97,34 +104,19 @@ function DeepCrop:createDistanceBranch(config)
   --Needed for backward step from parallel container
   distanceBranch:add(nn.Reshape(3*self.fSz*self.fSz,true))
 
-  return distanceBranch
+  return distanceBranch:cuda()
 end
-
 
 --------------------------------------------------------------------------------
 -- function: create mask branch
 function DeepCrop:createMaskBranch(config)
   local maskBranch = nn.Sequential()
-  -- 128 from feature branch and 3 from distance branch
-  maskBranch:add(nn.Linear((128+3)*self.fSz*self.fSz,512))
 
   -- maskBranch
   maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
+  maskBranch = nn.Sequential():add(maskBranch:cuda())
 
-  return maskBranch
-end
-
---------------------------------------------------------------------------------
--- function: create full model
-function DeepCrop:createCombinedModel(config)
-  local combinedModel = nn.Sequential()
-  local inputBranches = nn.Parallel(5,2)
-  inputBranches:add(self.featuresBranch)
-  inputBranches:add(self.distanceBranch)
-  combinedModel:add(inputBranches)
-  combinedModel:add(self.maskBranch)
-  combinedModel = combinedModel:cuda()
-
+  -- upsampling layer
   if config.gSz > config.oSz then
     local upSample = nn.Sequential()
     upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
@@ -133,41 +125,89 @@ function DeepCrop:createCombinedModel(config)
     mode='bilinear'})
     upSample:add(nn.View(config.batch,config.gSz*config.gSz))
     upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
-    combinedModel:add(upSample)
+    maskBranch:add(upSample)
   end
+
+  return maskBranch
+end
+
+--------------------------------------------------------------------------------
+-- function: create score branch
+function DeepCrop:createScoreBranch(config)
+  local scoreBranch = nn.Sequential()
+  scoreBranch:add(nn.Dropout(.5))
+  scoreBranch:add(nn.Linear(512,1024))
+  scoreBranch:add(nn.Threshold(0, 1e-6))
+
+  scoreBranch:add(nn.Dropout(.5))
+  scoreBranch:add(nn.Linear(1024,1))
+
+  return scoreBranch:cuda()
+end
+
+--------------------------------------------------------------------------------
+-- function: create full mask model
+function DeepCrop:createCombinedFeatures(config)
+  local combinedModel = nn.Sequential()
+  
+  local inputBranches = nn.Parallel(5,2)
+  inputBranches:add(self.featuresBranch)
+  inputBranches:add(self.distanceBranch)
+ 
+  combinedModel:add(inputBranches)
+  -- 128 from feature branch and 3 from distance branch
+  combinedModel:add(nn.Linear((128+3)*self.fSz*self.fSz,512))
+  
+  return combinedModel:cuda()
+end
+
+--------------------------------------------------------------------------------
+-- function: create full mask model
+function DeepCrop:createMaskModel(config)
+  local combinedModel = nn.Sequential()
+  combinedModel:add(self.combinedFeatures)
+  combinedModel:add(self.maskBranch)
+  
   return combinedModel
 end
 
 --------------------------------------------------------------------------------
+-- function: create full score model
+function DeepCrop:createScoreModel(config)
+  local combinedModel = nn.Sequential()
+  combinedModel:add(self.combinedFeatures)
+  combinedModel:add(self.scoreBranch)
+  
+  return combinedModel
+end
+--------------------------------------------------------------------------------
 -- function: training
 function DeepCrop:training()
-  self.featuresBranch:training(); self.distanceBranch:training(); self.maskBranch:training()
+  self.combinedFeatures:training(); self.distanceBranch:training(); self.maskBranch:training(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: evaluate
 function DeepCrop:evaluate()
-  self.featuresBranch:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate()
+  self.combinedFeatures:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: to cuda
 function DeepCrop:cuda()
-  self.featuresBranch:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda()
+  self.combinedFeatures:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda(); self.scoreBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
 -- function: to float
 function DeepCrop:float()
-  self.featuresBranch:float(); self.distanceBranch:float(); self.maskBranch:float()
+  self.combinedFeatures:float(); self.distanceBranch:float(); self.maskBranch:float(); self.scoreBranch:float()
 end
 
 --------------------------------------------------------------------------------
 -- function: inference (used for full scene inference)
 function DeepCrop:inference()
-  self.featuresBranch:evaluate()
-  self.maskBranch:evaluate()
-  self.distanceBranch:evaluate()
+  self:evaluate()
 
   utils.linear2convTrunk(self.featuresBranch,self.fSz)
   utils.linear2convHead(self.maskBranch.modules[1])
