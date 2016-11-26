@@ -148,7 +148,7 @@ end
 local maxacc = 0
 function Trainer:test(epoch, dataloader)
   self.model:evaluate()
-  self.testIoumeter:reset()
+  self.maskmeter:reset()
   self.scoremeter:reset()
   
   local timer = torch.Timer()

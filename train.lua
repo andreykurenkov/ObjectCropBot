@@ -134,7 +134,7 @@ for i = 1, config.maxepoch do
   if i%2 == 0 then 
     trainer:test(epoch,valLoader) 
 
-    testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.testIouMeter:value('0.7'))
+    testErrorStr = string.format('%s,%f',testErrorStr,1-trainer.maskmeter:value('0.7'))
 
     if config.verbose then
       print('| Test error:')
