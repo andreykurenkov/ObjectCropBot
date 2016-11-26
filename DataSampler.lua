@@ -88,7 +88,7 @@ function DataSampler:maskSampling()
       local annid = annIds[torch.random(annIds:size(1))]
       ann = self.coco:loadAnns(annid)[1]
   end
-  local bbox = ann.bbox --self:jitterBox(ann.bbox)
+  local bbox = self:jitterBox(ann.bbox)
   local imgName = self.coco:loadImgs(ann.image_id)[1].file_name
   -- input
   local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
@@ -179,7 +179,7 @@ function DataSampler:cropTensor(inp, b, pad)
 
   local xo1,yo1,xo2,yo2 = b[1],b[2],b[3]+b[1]-1,b[4]+b[2]-1
   local xc1,yc1,xc2,yc2 = 1,1,b[3],b[4]
-
+  
   -- compute box on binary mask inp and cropped mask out
   if b[1] < 1 then xo1=1; xc1=1+(1-b[1]) end
   if b[2] < 1 then yo1=1; yc1=1+(1-b[2]) end
@@ -216,9 +216,24 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   local Rs = self.maskApi.frPoly(polS, h*scale, w*scale)
   local mo = self.maskApi.decode(Rs)
   local mc = self:cropTensor(mo, bboxS)
-  mask:copy(image.scale(mo,sz,sz):gt(0.5))
+  mask:copy(image.scale(mc,sz,sz):gt(0.5))
 
   return mask
 end
+
+--------------------------------------------------------------------------------
+-- function: jitter bbox
+function DataSampler:jitterBox(box)
+  local x, y, w, h = box[1], box[2], box[3], box[4]
+  local xc, yc = x+w/2, y+h/2
+  local maxDim = math.max(w,h)
+  local scale = log2(maxDim/self.objSz)
+  local s = scale + torch.uniform(-self.scale,self.scale)
+  xc = xc + torch.uniform(-self.shift,self.shift)*2^s
+  yc = yc + torch.uniform(-self.shift,self.shift)*2^s
+  w, h = self.wSz*2^s, self.wSz*2^s
+  return {xc-w/2, yc-h/2,w,h}
+end
+
 
 return DataSampler
