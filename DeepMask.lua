@@ -53,7 +53,7 @@ function DeepMask:createTrunk(config)
   self.fSz = config.iSz/16
 
   -- load trunk
-  local trunk = torch.load('pretrained/resnet-50.t7')
+  local trunk = torch.load('pretrained/resnet-18.t7')
 
   -- remove BN
   utils.BNtoFixed(trunk, true)
@@ -65,7 +65,7 @@ function DeepMask:createTrunk(config)
   trunk:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
 
   -- add common extra layers
-  trunk:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
+  trunk:add(cudnn.SpatialConvolution(256,128,1,1,1,1))
   trunk:add(cudnn.ReLU())
   trunk:add(nn.View(config.batch,128*self.fSz*self.fSz))
   trunk:add(nn.Linear(128*self.fSz*self.fSz,512))
