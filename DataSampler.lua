@@ -94,7 +94,7 @@ function DataSampler:maskSampling()
   local pathImg = string.format('%s/%s2014/%s',self.datadir,self.split,imgName)
   local inp = image.load(pathImg,3)
   local h, w = inp:size(2), inp:size(3)
-  -- inp = self:cropTensor(inp, bbox, 0.5)
+  inp = self:cropTensor(inp, bbox, 0.5)
   local imgInp = image.scale(inp, wSz, wSz)
 
   -- label
@@ -210,12 +210,12 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   for m, segm in pairs(seg) do
     polS[m] = torch.DoubleTensor():resizeAs(segm):copy(segm); polS[m]:mul(scale)
   end
-  --local bboxS = {}
-  --for m = 1,#bbox do bboxS[m] = bbox[m]*scale end
+  local bboxS = {}
+  for m = 1,#bbox do bboxS[m] = bbox[m]*scale end
 
   local Rs = self.maskApi.frPoly(polS, h*scale, w*scale)
   local mo = self.maskApi.decode(Rs)
-  ---local mc = self:cropTensor(mo, bboxS)
+  local mc = self:cropTensor(mo, bboxS)
   mask:copy(image.scale(mo,sz,sz):gt(0.5))
 
   return mask
