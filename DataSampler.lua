@@ -290,10 +290,11 @@ function DataSampler:calcDistanceInp(imgInp, lbl, score)
   clickYs = torch.Tensor({cropClickY}):repeatTensor(self.wSz,self.wSz)
   clickCoords = clickXs:cat(clickYs,3):transpose(1,3)
   dists = (coords-clickCoords):norm(2,1)
-  dists = (dists:div(dists:max())-0.5)*2
-  if score~=nil and score.distPlus~=nil then
-     dists = dists:add(score.distPlus)
+  local offset = 0.5
+  if score~=nil then
+     offset= -0.5
   end
+  dists = (dists:div(dists:max())-offset)*2
   distanceInp[1] = dists
 
   -- Calculate rgb difference from click pixel, via 2 nom
