@@ -85,7 +85,7 @@ function DeepCrop:createFeaturesBranch(config)
 
   --Needed for backward step from parallel container
   featuresBranch:add(nn.Copy(nil,nil,true))
-  return featuresBranch
+  return featuresBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ function DeepCrop:createDistanceBranch(config)
   --Needed for backward step from parallel container
   distanceBranch:add(nn.Reshape(3*self.fSz*self.fSz,true))
 
-  return distanceBranch
+  return distanceBranch:cuda()
 end
 
 
@@ -110,6 +110,19 @@ function DeepCrop:createMaskBranch(config)
 
   -- maskBranch
   maskBranch:add(nn.Linear(512,config.oSz*config.oSz))
+  maskBranch = nn.Sequential():add(maskBranch:cuda())
+
+  -- upsampling layer
+  if config.gSz > config.oSz then
+    local upSample = nn.Sequential()
+    upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
+    upSample:add(nn.View(config.batch,config.oSz,config.oSz))
+    upSample:add(nn.SpatialReSamplingEx{owidth=config.gSz,oheight=config.gSz,
+    mode='bilinear'})
+    upSample:add(nn.View(config.batch,config.gSz*config.gSz))
+    upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
+    maskBranch:add(upSample)
+  end
 
   return maskBranch
 end
@@ -121,20 +134,9 @@ function DeepCrop:createCombinedModel(config)
   local inputBranches = nn.Parallel(5,2)
   inputBranches:add(self.featuresBranch)
   inputBranches:add(self.distanceBranch)
-  combinedModel:add(inputBranches)
+  combinedModel:add(inputBranches:cuda())
   combinedModel:add(self.maskBranch)
-  combinedModel = combinedModel:cuda()
-
-  if config.gSz > config.oSz then
-    local upSample = nn.Sequential()
-    upSample:add(nn.Copy('torch.CudaTensor','torch.FloatTensor'))
-    upSample:add(nn.View(config.batch,config.oSz,config.oSz))
-    upSample:add(nn.SpatialReSamplingEx{owidth=config.gSz,oheight=config.gSz,
-    mode='bilinear'})
-    upSample:add(nn.View(config.batch,config.gSz*config.gSz))
-    upSample:add(nn.Copy('torch.FloatTensor','torch.CudaTensor'))
-    combinedModel:add(upSample)
-  end
+  
   return combinedModel
 end
 
