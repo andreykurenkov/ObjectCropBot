@@ -366,7 +366,7 @@ function DataSampler:cropMask(ann, bbox, h, w, sz)
   local Rs = self.maskApi.frPoly(polS, h*scale, w*scale)
   local mo = self.maskApi.decode(Rs)
   local mc = self:cropTensor(mo, bboxS)
-  mask:copy(image.scale(mo,sz,sz):gt(0.5))
+  mask:copy(image.scale(mc,sz,sz):gt(0.5))
 
   return mask
 end
