@@ -275,7 +275,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, score)
     cropClickX = math.floor((clickIdx % self.gSz+1)*self.wSz/self.gSz)
     cropClickY = math.floor(math.floor(clickIdx / self.gSz+1)*self.wSz/self.gSz)
     pixel = imgInp[{{1,3},cropClickY,cropClickX}]
-    imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0,0,0})
+    imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({32,64,128})
   end
   if score~=nil and score.retCoord then
     return {x = cropClickX, y = cropClickY, pixel = pixel}
