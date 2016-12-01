@@ -92,11 +92,9 @@ function Trainer:train(epoch, dataloader)
     else
       local lossbatch = self.criterion:forward(outputs, self.labels)
       if outputs:mean()~=outputs:mean() then
-        print('her!')
         print(sample.head)
       end   
       if lossbatch~=lossbatch  then
-        print('heasdfar!')
         print(sample.head)
       end   
       model:zeroGradParameters()
