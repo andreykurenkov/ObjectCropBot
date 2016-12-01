@@ -133,7 +133,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, gSz, wSz)
   clickIdx = math.floor(idx[cropClick])
   cropClickX = math.floor((clickIdx%gSz+1)*wSz/gSz)
   cropClickY = math.floor(math.floor(clickIdx/gSz+1)*wSz/gSz)
-  imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0,0,0})
+  imgInp[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0.111,0.222,0.333})
 
   -- Calculate location difference from click pixel, via 2 norm
   pixels = torch.Tensor(torch.linspace(1,wSz,wSz))
