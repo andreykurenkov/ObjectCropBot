@@ -67,8 +67,9 @@ function DataLoader:run()
           if torch.uniform() > hfreq then head = 1 else head = 2 end
           local i = 1
           while i<=bsz do
-            local input, label = _G.ds:get(head)
-            if input==nil then
+            local status, input, label = pcall(
+              function() return _G.ds:get(head) end)
+            if (not status) or input==nil then
              -- Skip this one
             else
               if not inputs then

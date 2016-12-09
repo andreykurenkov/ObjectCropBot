@@ -226,6 +226,7 @@ function DeepCrop:clone(...)
   if select('#',...) > 0 then
     clone.featuresBranch:share(self.featuresBranch,...)
     clone.maskBranch:share(self.maskBranch,...)
+    clone.scoreBranch:share(self.scoreBranch,...)
   end
 
   return clone

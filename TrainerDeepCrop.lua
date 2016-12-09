@@ -91,12 +91,6 @@ function Trainer:train(epoch, dataloader)
       --print(debug.traceback())
     else
       local lossbatch = self.criterion:forward(outputs, self.labels)
-      if outputs:mean()~=outputs:mean() then
-        print(sample.head)
-      end   
-      if lossbatch~=lossbatch  then
-        print(sample.head)
-      end   
       model:zeroGradParameters()
       local gradOutputs = self.criterion:backward(outputs, self.labels)
       if sample.head == 1 then gradOutputs:mul(self.inputs:size(1)) end
