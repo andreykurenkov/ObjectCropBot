@@ -40,6 +40,9 @@ cmd:option('-smax', .5, 'max scale')
 cmd:option('-sstep', .5, 'scale step')
 cmd:option('-timer', false, 'breakdown timer')
 cmd:option('-dm', false, 'use DeepCrop version of SharpCrop')
+cmd:option('-iSz', 160, 'input size')
+cmd:option('-oSz', 56, 'output size')
+cmd:option('-gSz', 112, 'ground truth size')
 
 local config = cmd:parse(arg)
 
@@ -85,6 +88,9 @@ if config.save then os.execute(string.format('mkdir -p %s/res',savedir)) end
 local scales = {}
 for i = config.smin,config.smax,config.sstep do table.insert(scales,2^i) end
 
+paths.dofile('DataSampler.lua')
+
+local evalReader = DataSampler(config)
 if torch.type(model)=='nn.DeepCrop' then
   paths.dofile('InferDeepCrop.lua')
 elseif torch.type(model)=='nn.SharpCrop' then
