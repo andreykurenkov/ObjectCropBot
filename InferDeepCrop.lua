@@ -59,8 +59,8 @@ Infer.__init = argcheck{
       -- create  scale pyramid
       self.scales = scales
       self.pyramid = nn.ConcatTable()
-      for i = 1,#scales do
-        self.pyramid:add(nn.SpatialReSamplingEx{rwidth=scales[i],
+      for i = 1,#scales do        
+self.pyramid:add(nn.SpatialReSamplingEx{rwidth=scales[i],
           rheight=scales[i], mode='bilinear'})
       end
 
@@ -75,7 +75,6 @@ Infer.__init = argcheck{
 local inpPad = torch.CudaTensor()
 function Infer:forward(input)
   if input:type() == 'torch.CudaTensor' then input = input:float() end
-
   -- forward pyramid
   if self.timer then sys.tic() end
   local inpPyramid = self.pyramid:forward(input)
@@ -89,12 +88,13 @@ function Infer:forward(input)
 
     -- padding/normalize
     if self.timer then sys.tic() end
-    inpPad:resize(1,3,h+2*self.bw,w+2*self.bw):fill(.5)
+    inpPad:resize(1,3,h+2*self.bw,w+2*self.bw,2):fill(.5)
+
     inpPad:narrow(1,1,1):narrow(3,self.bw+1,h):narrow(4,self.bw+1,w):copy(inp)
-    for i=1,3 do inpPad[1][i]:add(-self.mean[i]):div(self.std[i]) end
+    for i=1,3 do inpPad[1]:select(4,1)[i]:add(-self.mean[i]):div(self.std[i]) end
     cutorch.synchronize()
     if self.timer then self.timer:narrow(1,2,1):add(sys.toc()) end
-
+print(inpPad:size())
     -- forward trunk
     if self.timer then sys.tic() end
     local outTrunk = self.trunk:forward(inpPad):squeeze()

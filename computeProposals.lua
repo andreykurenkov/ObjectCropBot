@@ -19,7 +19,8 @@ cmd:text('evaluate DeepCrop/SharpCrop')
 cmd:text()
 cmd:argument('-model', 'path to model to load')
 cmd:argument('-img', 'path/to/test/image')
-cmd:argument('-img_click' ,'x,y')
+cmd:argument('-clickX' ,'4')
+cmd:argument('-clickY' ,'54')
 cmd:text('Options:')
 cmd:option('-gpu', 1, 'gpu device')
 cmd:option('-np', 5,'number of proposals to save in test')
@@ -76,15 +77,15 @@ print('| start')
 
 -- load image
 local img = image.load(config.img)
-local cropClickX,cropClickY = image.load(config.img)
 local h,w = img:size(2),img:size(3)
+local cropClickX = config.clickX
+local cropClickY = config.clickY
 
-
-local distanceInp = torch.FloatTensor(3,self.wSz,self.wSz)
+local distanceInp = torch.FloatTensor(3,h,w)
 local pixel = img[{{1,3},cropClickY,cropClickX}]
 img[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0.111,0.222,0.333})
 -- Calculate location difference from click pixel, via 2 norm
-local pixels = torch.Tensor(torch.linspace(1,w,h))
+local pixels = torch.Tensor(torch.linspace(1,h,w))
 local pixelsX = torch.Tensor(torch.linspace(1,w,w)):reshape(w,1):repeatTensor(1,h)
 local pixelsY = torch.Tensor(torch.linspace(1,h,h)):reshape(1,h):repeatTensor(w,1)
 local coords = pixelsX:cat(pixelsY,3):transpose(1,3)
@@ -106,11 +107,11 @@ pixelLum = pixels:conv3(lumTensor)
 distanceInp[3] = (imgLum-pixelLum):norm(2,1)
 
 --Create combine 3 x wSz x wSz input x 2
-local combinedInp = torch.cat(imgInp,distanceInp,4)
+local combinedInp = torch.cat(img,distanceInp,4)
 
 
 -- forward all scales
-infer:forward(img)
+infer:forward(combinedInp)
 
 -- get top propsals
 local masks,_ = infer:getTopProps(.2,h,w)
