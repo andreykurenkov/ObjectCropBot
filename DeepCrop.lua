@@ -37,7 +37,7 @@ function DeepCrop:__init(config)
   self.scoreBranch = self:createScoreBranch(config)
 
   -- create paralelle branch 
-  self.combinedFeatures = self:createCombinedFeatures(config)
+  self.trunk = self:createCombinedFeatures(config)
   
   -- combine into final models
   self.maskModel = self:createMaskModel(config)
@@ -165,7 +165,7 @@ end
 -- function: create full mask model
 function DeepCrop:createMaskModel(config)
   local combinedModel = nn.Sequential()
-  combinedModel:add(self.combinedFeatures)
+  combinedModel:add(self.trunk)
   combinedModel:add(self.maskBranch)
   
   return combinedModel
@@ -175,7 +175,7 @@ end
 -- function: create full score model
 function DeepCrop:createScoreModel(config)
   local combinedModel = nn.Sequential()
-  combinedModel:add(self.combinedFeatures)
+  combinedModel:add(self.trunk)
   combinedModel:add(self.scoreBranch)
   
   return combinedModel
@@ -183,25 +183,25 @@ end
 --------------------------------------------------------------------------------
 -- function: training
 function DeepCrop:training()
-  self.combinedFeatures:training(); self.distanceBranch:training(); self.maskBranch:training(); self.scoreBranch:training()
+  self.trunk:training(); self.distanceBranch:training(); self.maskBranch:training(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: evaluate
 function DeepCrop:evaluate()
-  self.combinedFeatures:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:training()
+  self.trunk:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: to cuda
 function DeepCrop:cuda()
-  self.combinedFeatures:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda(); self.scoreBranch:cuda()
+  self.trunk:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda(); self.scoreBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
 -- function: to float
 function DeepCrop:float()
-  self.combinedFeatures:float(); self.distanceBranch:float(); self.maskBranch:float(); self.scoreBranch:float()
+  self.trunk:float(); self.distanceBranch:float(); self.maskBranch:float(); self.scoreBranch:float()
 end
 
 --------------------------------------------------------------------------------

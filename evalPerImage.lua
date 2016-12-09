@@ -4,7 +4,7 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 
-Full scene evaluation of DeepMask/SharpMask
+Full scene evaluation of DeepCrop/SharpCrop
 ------------------------------------------------------------------------------]]
 
 require 'torch'
@@ -15,14 +15,14 @@ local cjson = require 'cjson'
 local tds = require 'tds'
 local coco = require 'coco'
 
-paths.dofile('DeepMask.lua')
-paths.dofile('SharpMask.lua')
+paths.dofile('DeepCrop.lua')
+paths.dofile('SharpCrop.lua')
 
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
 cmd:text()
-cmd:text('full scene evaluation of DeepMask/SharpMask')
+cmd:text('full scene evaluation of DeepCrop/SharpCrop')
 cmd:text()
 cmd:argument('-model', 'model to load')
 cmd:text('Options:')
@@ -39,7 +39,7 @@ cmd:option('-smin', -2.5, 'min scale')
 cmd:option('-smax', .5, 'max scale')
 cmd:option('-sstep', .5, 'scale step')
 cmd:option('-timer', false, 'breakdown timer')
-cmd:option('-dm', false, 'use DeepMask version of SharpMask')
+cmd:option('-dm', false, 'use DeepCrop version of SharpCrop')
 
 local config = cmd:parse(arg)
 
@@ -85,10 +85,10 @@ if config.save then os.execute(string.format('mkdir -p %s/res',savedir)) end
 local scales = {}
 for i = config.smin,config.smax,config.sstep do table.insert(scales,2^i) end
 
-if torch.type(model)=='nn.DeepMask' then
-  paths.dofile('InferDeepMask.lua')
-elseif torch.type(model)=='nn.SharpMask' then
-  paths.dofile('InferSharpMask.lua')
+if torch.type(model)=='nn.DeepCrop' then
+  paths.dofile('InferDeepCrop.lua')
+elseif torch.type(model)=='nn.SharpCrop' then
+  paths.dofile('InferSharpCrop.lua')
 end
 
 local infer = Infer{
