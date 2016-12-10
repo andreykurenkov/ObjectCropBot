@@ -88,14 +88,14 @@ elseif #config.preload > 0 then
   local m = torch.load(string.format('%s/model.t7', config.preload))
   local maskModel = m.model
 
-  local inLayer = nn.SpatialConvolution(4, 64, 7, 7, 2,2)
-  inLayer.weight[{ 2,{1,3} }]:set(maskModel.trunk.modules[1].modules[2].weight:float())
+  local inLayer = nn.SpatialConvolution(4, 64, 7, 7, 2,2):cuda()
+  inLayer.weight[{ 2,{1,3} }]:set(maskModel.trunk.modules[1].modules[2].weight)
   maskModel.trunk.modules[1].modules[2] = inLayer
 
   model = nn.DeepCrop(config)
-  model.trunk:clone(maskModel.trunk,...)
-  model.maskBranch:clone(maskModel.maskBranch,...)
-  model.scoreBranch:clone(maskModel.scoreBranch,...)
+  model.trunk=maskModel.trunk
+  model.maskBranch=maskModel.maskBranch
+  model.scoreBranch=maskModel.scoreBranch
 end
 
 --------------------------------------------------------------------------------
@@ -113,6 +113,7 @@ os.execute(string.format('mkdir -p %s/samples/test',config.rundir))
 
 --------------------------------------------------------------------------------
 -- network and criterion
+model = model or (trainSm and nn.SharpCrop(config) or nn.DeepCrop(config))
 local criterion = nn.SoftMarginCriterion():cuda()
 
 print('| start training')

@@ -50,9 +50,9 @@ function DeepCrop:createFeaturesBranch(config)
   -- size of feature maps at end of trunk
   self.fSz = config.iSz/16
 
-  --local featuresBranch = torch.load('pretrained/resnet-18.t7')
+  local featuresBranch = torch.load('pretrained/resnet-18.t7')
   -- load trunk
-  local featuresBranch = torch.load('pretrained/resnet-50.t7')
+  --local featuresBranch = torch.load('pretrained/resnet-50.t7')
   -- remove BN
   utils.BNtoFixed(featuresBranch, true)
 
@@ -69,8 +69,8 @@ function DeepCrop:createFeaturesBranch(config)
   featuresBranch:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
 
   -- add common extra layers
-  --featuresBranch:add(cudnn.SpatialConvolution(256,128,1,1,1,1))
-  featuresBranch:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
+  featuresBranch:add(cudnn.SpatialConvolution(256,128,1,1,1,1))
+  --featuresBranch:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
   featuresBranch:add(cudnn.ReLU())
   featuresBranch:add(nn.View(config.batch,128*self.fSz*self.fSz))
   featuresBranch:add(nn.Linear(128*self.fSz*self.fSz,512))
