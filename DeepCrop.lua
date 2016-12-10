@@ -167,11 +167,10 @@ function DeepCrop:inference()
   self:evaluate()
 
   utils.linear2convTrunk(self.trunk,self.fSz)
+  utils.linear2convHead(self.scoreBranch)
   utils.linear2convHead(self.maskBranch.modules[1])
   self.maskBranch = self.maskBranch.modules[1]
-  -- local k = config.iSz + 32 - self.fSz + 1 
-  self.distanceBranch = nn.Copy()
-  self.trunk.modules[1].modules[2].modules[2]=self.distanceBranch
+
   self:cuda()
 end
 

@@ -81,7 +81,7 @@ local h,w = img:size(2),img:size(3)
 local cropClickX = config.clickX
 local cropClickY = config.clickY
 
-local distanceInp = torch.FloatTensor(3,h,w)
+local distanceInp = torch.FloatTensor(1,h,w)
 local pixel = img[{{1,3},cropClickY,cropClickX}]
 img[{{1,3},cropClickX,cropClickY}] = torch.Tensor({0.111,0.222,0.333})
 -- Calculate location difference from click pixel, via 2 norm
@@ -98,17 +98,16 @@ distanceInp[1] = dists
 
 -- Calculate rgb difference from click pixel, via 2 nom
 pixels = pixel:reshape(1,1,3):repeatTensor(w,h,1):transpose(1,3)
-distanceInp[2] = (img-pixels):norm(2,1)
+--distanceInp[2] = (img-pixels):norm(2,1)
 
 -- Calculate lum difference from click pixel, via 2 nom
 lumTensor = torch.Tensor({0.299,0.587,0.114}):reshape(3,1,1)
 imgLum = img:conv3(lumTensor)
 pixelLum = pixels:conv3(lumTensor)
-distanceInp[3] = (imgLum-pixelLum):norm(2,1)
+--distanceInp[3] = (imgLum-pixelLum):norm(2,1)
 
---Create combine 3 x wSz x wSz input x 2
-local combinedInp = torch.cat(img,distanceInp,4)
-
+--Create combine 4 x wSz x wSz input
+local combinedInp = torch.cat(img,distanceInp,1)
 
 -- forward all scales
 infer:forward(combinedInp)

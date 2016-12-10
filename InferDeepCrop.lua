@@ -89,18 +89,15 @@ function Infer:forward(input)
 
     -- padding/normalize
     if self.timer then sys.tic() end
-    inpPad:resize(1,3,h+2*self.bw,w+2*self.bw,2):fill(.5)
+    inpPad:resize(1,4,h+2*self.bw,w+2*self.bw):fill(.5)
 
     inpPad:narrow(1,1,1):narrow(3,self.bw+1,h):narrow(4,self.bw+1,w):copy(inp)
-    for i=1,3 do inpPad[1]:select(4,1)[i]:add(-self.mean[i]):div(self.std[i]) end
+    for i=1,3 do inpPad[1][i]:add(-self.mean[i]):div(self.std[i]) end
     cutorch.synchronize()
     if self.timer then self.timer:narrow(1,2,1):add(sys.toc()) end
-print(inpPad:size())
-print(self.model.featuresBranch:forward(inpPad:select(5,1)):size())
 
     -- forward trunk
     if self.timer then sys.tic() end
-
     local outTrunk = self.trunk:forward(inpPad):squeeze()
     cutorch.synchronize()
     if self.timer then self.timer:narrow(1,3,1):add(sys.toc()) end
