@@ -169,10 +169,10 @@ function Trainer:test(epoch, dataloader)
       cutorch.synchronize()
    
       if self.config.verbose and n<4 then
-        image.save(string.format('%s/samples/test/test_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
-        image.save(string.format('%s/samples/test/test_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
-        image.save(string.format('%s/samples/test/test_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
-        image.save(string.format('%s/samples/test/test_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][3]:select(3,2))
+        image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[{1,{1,3}}])
+        image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][4]:add(1):div(2))
+        --image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][5])
+        --image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][6])
         if sample.head==1 then
           labelSize = self.labels[1]:size()
           image.save(string.format('%s/samples/test/test_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
