@@ -10,6 +10,7 @@ Train DeepMask or SharpMask
 require 'torch'
 require 'cutorch'
 require 'cudnn'
+require 'nn'
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
@@ -24,6 +25,7 @@ cmd:option('-seed', 1, 'manually set RNG seed')
 cmd:option('-gpu', 1, 'gpu device')
 cmd:option('-nthreads', 1, 'number of threads for DataSampler')
 cmd:option('-reload', '', 'reload a network from given directory')
+cmd:option('-preload', '', 'train DeepCrop with starting weights from DeepMask')
 cmd:text()
 cmd:text('Training Options:')
 cmd:option('-batch', 16, 'training batch size')
@@ -63,6 +65,8 @@ if #config.dm > 0 then
   config.gSz = config.iSz -- in sharpmask, ground-truth has same dim as input
 end
 
+paths.dofile('SpatialSymmetricPadding.lua')
+paths.dofile('DeepMask.lua')
 paths.dofile('DeepCrop.lua')
 if trainSm then paths.dofile('SharpMask.lua') end
 
@@ -79,6 +83,19 @@ if #config.reload > 0 then
   print(string.format('| reloading experiment %s', config.reload))
   local m = torch.load(string.format('%s/model.t7', config.reload))
   model, config = m.model, m.config
+elseif #config.preload > 0 then
+  print(string.format('| reloading DeepMask experiment %s', config.preload))
+  local m = torch.load(string.format('%s/model.t7', config.preload))
+  local maskModel = m.model
+
+  local inLayer = nn.SpatialConvolution(4, 64, 7, 7, 2,2)
+  inLayer.weight[{ 2,{1,3} }]:set(maskModel.trunk.modules[1].modules[2].weight:float())
+  maskModel.trunk.modules[1].modules[2] = inLayer
+
+  model = nn.DeepCrop(config)
+  model.trunk:clone(maskModel.trunk,...)
+  model.maskBranch:clone(maskModel.maskBranch,...)
+  model.scoreBranch:clone(maskModel.scoreBranch,...)
 end
 
 --------------------------------------------------------------------------------
@@ -96,7 +113,6 @@ os.execute(string.format('mkdir -p %s/samples/test',config.rundir))
 
 --------------------------------------------------------------------------------
 -- network and criterion
-model = model or (trainSm and nn.SharpMask(config) or nn.DeepCrop(config))
 local criterion = nn.SoftMarginCriterion():cuda()
 
 print('| start training')
