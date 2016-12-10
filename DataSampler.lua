@@ -119,7 +119,7 @@ function DataSampler:get(headSampling)
   end
 
   -- normalize input
-  for i=1,3 do input:select(4,1):narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
+  for i=1,3 do input:narrow(1,i,1):add(-self.mean[i]):div(self.std[i]) end
 
   return input,label
 end
@@ -157,8 +157,9 @@ function DataSampler:maskSampling()
   if distanceInp == nil then
       return nil, nil
   end
-  --Create combine 3 x wSz x wSz input x 2
-  local combinedInp = torch.cat(imgInp,distanceInp,4)
+  --Create combine 6 x wSz x wSz input
+  local combinedInp = torch.cat(imgInp,distanceInp,1)
+
   return combinedInp, lbl
 end
 
@@ -245,15 +246,16 @@ function DataSampler:scoreSampling(cat,imgId)
     end
   end
 
-  --Create combine 3 x wSz x wSz input x 2
-  local combinedInp = torch.cat(imgInp,distanceInp,4)
+  --Create combine 6 x wSz x wSz input
+  local combinedInp = torch.cat(imgInp,distanceInp,1)
+
   return combinedInp, lbl
 end
 
 --------------------------------------------------------------------------------
 -- function: generate 'click' inside bounded object and get additional inputs for it
 function DataSampler:calcDistanceInp(imgInp, lbl, score)
-  local distanceInp = torch.FloatTensor(3,self.wSz,self.wSz)
+  local distanceInp = torch.FloatTensor(1,self.wSz,self.wSz)
 
   local cropClickX, cropClickY, pixel
   -- Sample a 'crop click' pixel
@@ -296,7 +298,7 @@ function DataSampler:calcDistanceInp(imgInp, lbl, score)
   end
   dists = (dists:div(dists:max())-offset)*2
   distanceInp[1] = dists
-
+--[[
   -- Calculate rgb difference from click pixel, via 2 nom
   
   pixels = pixel:reshape(1,1,3):repeatTensor(self.wSz,self.wSz,1):transpose(1,3)
@@ -306,8 +308,8 @@ function DataSampler:calcDistanceInp(imgInp, lbl, score)
   lumTensor = torch.Tensor({0.299,0.587,0.114}):reshape(3,1,1)
   imgLum = imgInp:conv3(lumTensor)
   pixelLum = pixels:conv3(lumTensor)
-  distanceInp[3] = (imgLum-pixelLum):norm(2,1)
-
+ -distanceInp[3] = (imgLum-pixelLum):norm(2,1)
+--]]
   return imgInp,distanceInp
 end
 

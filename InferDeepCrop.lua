@@ -40,6 +40,7 @@ Infer.__init = argcheck{
   call =
     function(self, np, scales, meanstd, model, iSz, dm, timer)
       --model
+      self.model = model
       self.trunk = model.trunk
       self.mHead = model.maskBranch
       self.sHead = model.scoreBranch
@@ -95,8 +96,11 @@ function Infer:forward(input)
     cutorch.synchronize()
     if self.timer then self.timer:narrow(1,2,1):add(sys.toc()) end
 print(inpPad:size())
+print(self.model.featuresBranch:forward(inpPad:select(5,1)):size())
+
     -- forward trunk
     if self.timer then sys.tic() end
+
     local outTrunk = self.trunk:forward(inpPad):squeeze()
     cutorch.synchronize()
     if self.timer then self.timer:narrow(1,3,1):add(sys.toc()) end

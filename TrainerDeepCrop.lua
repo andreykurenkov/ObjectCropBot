@@ -19,8 +19,8 @@ function Trainer:__init(model, criterion, config)
   -- training params
   self.config = config
   self.model = model
-  self.maskNet = model.maskModel
-  self.scoreNet = model.scoreModel
+  self.maskNet = model:createMaskModel(config)
+  self.scoreNet = model:createScoreModel(config)
   self.criterion = criterion
   self.lr = config.lr
   self.optimState ={}
@@ -35,7 +35,7 @@ function Trainer:__init(model, criterion, config)
   end
 
   -- params and gradparams
-  self.pt,self.gt = model.featuresBranch:getParameters()
+  self.pt,self.gt = model.trunk:getParameters()
   self.pm,self.gm = model.maskBranch:getParameters()
   self.ps,self.gs = model.scoreBranch:getParameters()
 
@@ -62,7 +62,7 @@ function Trainer:train(epoch, dataloader)
 
   local timer = torch.Timer()
 
-  local fevalfeatures = function() return self.model.featuresBranch.output, self.gt end
+  local fevalfeatures = function() return self.model.trunk.output, self.gt end
   local fevalmask  = function() return self.criterion.output,   self.gm end
   local fevalscore = function() return self.criterion.output, self.gs end
   
@@ -82,7 +82,6 @@ function Trainer:train(epoch, dataloader)
       model, params = self.scoreNet, self.ps
       feval,optimState = fevalscore, self.optimState.score
     end
-
     local status, outputs = pcall(
         function() return model:forward(self.inputs) end)
     if not status then
@@ -103,14 +102,14 @@ function Trainer:train(epoch, dataloader)
       -- update loss
       self.lossmeter:add(lossbatch)
       if self.config.verbose and (n<4 or n%500==0) then
-        image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[1]:select(4,1))
-        image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][1]:select(3,2):add(1):div(2))
-        image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][2]:select(3,2))
-        image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][3]:select(3,2))
+        image.save(string.format('%s/samples/train/train_%d_%d_in_img.jpg',self.rundir,epoch,n),self.inputs[{1,{1,3}}])
+        image.save(string.format('%s/samples/train/train_%d_%d_in_dist.jpg',self.rundir,epoch,n),self.inputs[1][4]:add(1):div(2))
+        --image.save(string.format('%s/samples/train/train_%d_%d_in_dist2.jpg',self.rundir,epoch,n),self.inputs[1][5])
+        --image.save(string.format('%s/samples/train/train_%d_%d_in_dist3.jpg',self.rundir,epoch,n),self.inputs[1][6])
         if sample.head==1 then
           labelSize = self.labels[1]:size()
           image.save(string.format('%s/samples/train/train_%d_%d_labels.jpg',self.rundir,epoch,n),self.labels[1]:resize(1,labelSize[1],labelSize[2]))
-           image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]))
+          image.save(string.format('%s/samples/train/train_%d_%d_out.jpg',self.rundir,epoch,n),outputs[1]:resize(1,labelSize[1],labelSize[2]))
         end
         print(string.format('[train] Saving samples - output: batch %d, output mean %04.3f, std %04.3f, max %04.3f, min %04.3f',n, outputs:mean(), outputs: std(), outputs:max(), outputs:min()))
       end

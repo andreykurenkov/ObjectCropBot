@@ -25,10 +25,7 @@ local DeepCrop,_ = torch.class('nn.DeepCrop','nn.Container')
 -- function: constructor
 function DeepCrop:__init(config)
   -- create image features branch
-  self.featuresBranch = self:createFeaturesBranch(config)
-
-  -- create distance from crop pixel branch
-  self.distanceBranch = self:createDistanceBranch(config)
+  self.trunk = self:createFeaturesBranch(config)
 
   -- create mask head
   self.maskBranch = self:createMaskBranch(config)
@@ -36,22 +33,15 @@ function DeepCrop:__init(config)
   -- create mask head
   self.scoreBranch = self:createScoreBranch(config)
 
-  -- create paralelle branch 
-  self.trunk = self:createCombinedFeatures(config)
-  
-  -- combine into final models
-  self.maskModel = self:createMaskModel(config)
-  self.scoreModel = self:createScoreModel(config)
-
   -- number of parameters
   local npt,nps,npm = 0,0,0
-  local p1,p2,p3  = self.featuresBranch:parameters(),self.maskBranch:parameters(),self.distanceBranch:parameters()
+  local p1,p2,p3  = self.trunk:parameters(),self.maskBranch:parameters(),self.scoreBranch:parameters()
   for k,v in pairs(p1) do npt = npt+v:nElement() end
   for k,v in pairs(p2) do npm = npm+v:nElement() end
   for k,v in pairs(p3) do nps = nps+v:nElement() end
   print(string.format('| number of paramaters features branch: %d', npt))
   print(string.format('| number of paramaters mask branch: %d', npm))
-  print(string.format('| number of paramaters distance: %d', nps))
+  print(string.format('| number of paramaters score branch: %d', nps))
   print(string.format('| number of paramaters total: %d', npt+nps+npm))
 end
 
@@ -73,6 +63,9 @@ function DeepCrop:createFeaturesBranch(config)
   featuresBranch:remove()
   featuresBranch:remove()
 
+  inLayer = nn.SpatialConvolution(4, 64, 7, 7, 2,2)
+  inLayer.weight[{ 2,{1,3} }]:set(featuresBranch.modules[1].weight:float())
+  featuresBranch.modules[1] = inLayer
   -- crop central pad
   featuresBranch:add(nn.SpatialZeroPadding(-1,-1,-1,-1))
 
@@ -81,6 +74,7 @@ function DeepCrop:createFeaturesBranch(config)
   --featuresBranch:add(cudnn.SpatialConvolution(1024,128,1,1,1,1))
   featuresBranch:add(cudnn.ReLU())
   featuresBranch:add(nn.View(config.batch,128*self.fSz*self.fSz))
+  featuresBranch:add(nn.Linear(128*self.fSz*self.fSz,512))
 
   -- from scratch? reset the parameters
   if config.scratch then
@@ -90,22 +84,9 @@ function DeepCrop:createFeaturesBranch(config)
   -- symmetricPadding
   utils.updatePadding(featuresBranch, nn.SpatialSymmetricPadding)
 
-  --Needed for backward step from parallel container
-  featuresBranch:add(nn.Copy(nil,nil,true))
   return featuresBranch:cuda()
 end
 
---------------------------------------------------------------------------------
--- function: create distance branch
-function DeepCrop:createDistanceBranch(config)
-  local distanceBranch = nn.Sequential()
-  local k = config.iSz + 32 - self.fSz + 1 
-  distanceBranch:insert(nn.SpatialSubSampling(3,k,k))
-  --Needed for backward step from parallel container
-  distanceBranch:add(nn.Reshape(3*self.fSz*self.fSz,true))
-
-  return distanceBranch:cuda()
-end
 
 --------------------------------------------------------------------------------
 -- function: create mask branch
@@ -147,61 +128,37 @@ end
 
 --------------------------------------------------------------------------------
 -- function: create full mask model
-function DeepCrop:createCombinedFeatures(config)
-  local combinedModel = nn.Sequential()
-  
-  local inputBranches = nn.Parallel(5,2)
-  inputBranches:add(self.featuresBranch)
-  inputBranches:add(self.distanceBranch)
- 
-  combinedModel:add(inputBranches)
-  -- 128 from feature branch and 3 from distance branch
-  combinedModel:add(nn.Linear((128+3)*self.fSz*self.fSz,512))
-  
-  return combinedModel:cuda()
-end
-
---------------------------------------------------------------------------------
--- function: create full mask model
 function DeepCrop:createMaskModel(config)
-  local combinedModel = nn.Sequential()
-  combinedModel:add(self.trunk)
-  combinedModel:add(self.maskBranch)
-  
-  return combinedModel
+  return nn.Sequential():add(self.trunk):add(self.maskBranch)
 end
 
 --------------------------------------------------------------------------------
 -- function: create full score model
 function DeepCrop:createScoreModel(config)
-  local combinedModel = nn.Sequential()
-  combinedModel:add(self.trunk)
-  combinedModel:add(self.scoreBranch)
-  
-  return combinedModel
+  return nn.Sequential():add(self.trunk):add(self.scoreBranch)
 end
 --------------------------------------------------------------------------------
 -- function: training
 function DeepCrop:training()
-  self.trunk:training(); self.distanceBranch:training(); self.maskBranch:training(); self.scoreBranch:training()
+  self.trunk:training(); self.maskBranch:training(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: evaluate
 function DeepCrop:evaluate()
-  self.trunk:evaluate(); self.distanceBranch:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:training()
+  self.trunk:evaluate(); self.maskBranch:evaluate(); self.scoreBranch:training()
 end
 
 --------------------------------------------------------------------------------
 -- function: to cuda
 function DeepCrop:cuda()
-  self.trunk:cuda(); self.distanceBranch:cuda(); self.maskBranch:cuda(); self.scoreBranch:cuda()
+  self.trunk:cuda(); self.maskBranch:cuda(); self.scoreBranch:cuda()
 end
 
 --------------------------------------------------------------------------------
 -- function: to float
 function DeepCrop:float()
-  self.trunk:float(); self.distanceBranch:float(); self.maskBranch:float(); self.scoreBranch:float()
+  self.trunk:float(); self.maskBranch:float(); self.scoreBranch:float()
 end
 
 --------------------------------------------------------------------------------
@@ -213,8 +170,8 @@ function DeepCrop:inference()
   utils.linear2convHead(self.maskBranch.modules[1])
   self.maskBranch = self.maskBranch.modules[1]
   -- local k = config.iSz + 32 - self.fSz + 1 
- --  self.distanceBranch = nn.SpatialSubSampling(3,k,k)
-  -- self.trunk.modules[1].modules[2]=self.distanceBranch
+  self.distanceBranch = nn.Copy()
+  self.trunk.modules[1].modules[2].modules[2]=self.distanceBranch
   self:cuda()
 end
 
@@ -226,13 +183,9 @@ function DeepCrop:clone(...)
   local clone = f:readObject(); f:close()
 
   if select('#',...) > 0 then
-    clone.featuresBranch:share(self.featuresBranch,...)
-    clone.distanceBranch:share(self.distanceBranch,...)
     clone.trunk:share(self.trunk,...)
     clone.maskBranch:share(self.maskBranch,...)
     clone.scoreBranch:share(self.scoreBranch,...)
-    clone.maskModel:share(self.maskModel,...)
-    clone.scoreModel:share(self.scoreModel,...)
   end
 
   return clone
