@@ -23,7 +23,7 @@ cmd:option('-name', '', 'name of experiment')
 cmd:option('-datadir', 'data/', 'data directory')
 cmd:option('-seed', 1, 'manually set RNG seed')
 cmd:option('-gpu', 1, 'gpu device')
-cmd:option('-nthreads', 1, 'number of threads for DataSampler')
+cmd:option('-nthreads', 8, 'number of threads for DataSampler')
 cmd:option('-reload', '', 'reload a network from given directory')
 cmd:option('-preload', '', 'train DeepCrop with starting weights from DeepMask')
 cmd:text()
@@ -41,6 +41,7 @@ cmd:option('-hfreq', 0.5, 'mask/score head sampling frequency')
 cmd:option('-iSz', 160, 'input size')
 cmd:option('-oSz', 56, 'output size')
 cmd:option('-gSz', 112, 'ground truth size')
+cmd:option('-resnet50', false, 'Whether to train with resnet-50 instead of resnet-18')
 cmd:option('-scratch', false, 'train DeepCrop with randomly initialize weights')
 cmd:option('-verbose', true, 'train DeepCrop with extra output')
 cmd:text()
@@ -91,7 +92,8 @@ elseif #config.preload > 0 then
   local inLayer = nn.SpatialConvolution(4, 64, 7, 7, 2,2):cuda()
   inLayer.weight[{ 2,{1,3} }]:set(maskModel.trunk.modules[1].modules[2].weight)
   maskModel.trunk.modules[1].modules[2] = inLayer
-
+  --maskModel.trunk.modules[11]=nn.View(config.batch,128*10*10):cuda()
+  config.resnet50=true
   model = nn.DeepCrop(config)
   model.trunk=maskModel.trunk
   model.maskBranch=maskModel.maskBranch
