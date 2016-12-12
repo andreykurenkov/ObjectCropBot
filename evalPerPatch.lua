@@ -23,7 +23,8 @@ cmd:argument('-model', 'model to load')
 cmd:text('Options:')
 cmd:option('-seed', 1, 'Manually set RNG seed')
 cmd:option('-gpu', 1, 'gpu device')
-cmd:option('-testmaxload', 200, 'max number of testing batches')
+cmd:option('-trainmaxload', 5000, 'max number of testing batches')
+cmd:option('-testmaxload', 1000, 'max number of testing batches')
 cmd:option('-save', false, 'save output')
 
 local config = cmd:parse(arg)
@@ -71,7 +72,7 @@ end
 --------------------------------------------------------------------------------
 -- initialize data provider and mask meter
 local DataLoader = paths.dofile('DataLoader.lua')
-local _, valLoader = DataLoader.create(config)
+local testLoader, valLoader = DataLoader.create(config)
 
 paths.dofile('trainMeters.lua')
 local maskmeter = IouMeter(0.5,config.testmaxload*config.batch)
@@ -115,45 +116,48 @@ end
 
 --------------------------------------------------------------------------------
 -- start evaluation
-print('| start per batch evaluation')
-maskmeter:reset()
+print('| start per batch evaluation for val set')
 sys.tic()
-for n, sample in valLoader:run() do
-  xlua.progress(n,config.testmaxload)
+names = {'train','test'}
+for i,loader in ipairs({trainLoader,valLoader}) do
+  maskmeter:reset()
+  for n, sample in loader:run() do
+    xlua.progress(n,config.testmaxload)
 
-  -- copy input and target to the GPU
-  inputs:resize(sample.inputs:size()):copy(sample.inputs)
+    -- copy input and target to the GPU
+    inputs:resize(sample.inputs:size()):copy(sample.inputs)
 
-  -- infer mask in batch
-  local output = model:forward(inputs):float()
-  cutorch.synchronize()
-  output = output:view(sample.labels:size())
+    -- infer mask in batch
+    local output = model:forward(inputs):float()
+    cutorch.synchronize()
+    output = output:view(sample.labels:size())
 
-  -- compute IoU
-  maskmeter:add(output,sample.labels)
+    -- compute IoU
+    maskmeter:add(output,sample.labels)
 
-  -- save?
-  if config.save then
-    saveRes(sample.inputs, sample.labels, output, savedir, n)
+    -- save?
+    if config.save then
+      saveRes(sample.inputs, sample.labels, output, savedir, n)
+    end
+
+    collectgarbage()
   end
-
-  collectgarbage()
-end
-cutorch.synchronize()
-print('| finish')
+  cutorch.synchronize()
 
 --------------------------------------------------------------------------------
--- log
-print('----------------------------------------------')
-local log = string.format('| model: %s\n',config.model)
-log = log..string.format('| # epochs: %s\n',epoch)
-log = log..string.format(
-  '| # samples: %d\n'..
-  '| samples/s %7d '..
-  '| mean %06.2f median %06.2f '..
-  'iou@.5 %06.2f  iou@.7 %06.2f ',
-  maskmeter.n,config.batch*config.testmaxload/sys.toc(),
-  maskmeter:value('mean'),maskmeter:value('median'),
-  maskmeter:value('0.5'), maskmeter:value('0.7')
-  )
-print(log)
+  -- log
+  print('----------------------------------------------')
+  print('Results for '+names[i]+':')
+  
+  local log = log..string.format(
+    '| # samples: %d\n'..
+    '| samples/s %7d '..
+    '| mean %06.2f median %06.2f '..
+    'iou@.5 %06.2f  iou@.7 %06.2f ',
+    maskmeter.n,config.batch*config.testmaxload/sys.toc(),
+    maskmeter:value('mean'),maskmeter:value('median'),
+    maskmeter:value('0.5'), maskmeter:value('0.7')
+    )
+  print(log)
+end
+ print('| finish')
