@@ -4,20 +4,20 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 
-Per patch evaluation of DeepMask/SharpMask
+Per patch evaluation of DeepCrop/SharpCrop
 ------------------------------------------------------------------------------]]
 
 require 'torch'
 require 'cutorch'
 
-paths.dofile('DeepMask.lua')
-paths.dofile('SharpMask.lua')
+paths.dofile('DeepCrop.lua')
+paths.dofile('SharpCrop.lua')
 
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
 cmd:text()
-cmd:text('per patch evaluation of DeepMask/SharpMask')
+cmd:text('per patch evaluation of DeepCrop/SharpCrop')
 cmd:text()
 cmd:argument('-model', 'model to load')
 cmd:text('Options:')
@@ -54,8 +54,8 @@ end
 config.hfreq = 0 -- only evaluate masks
 
 local model = m.model
-if torch.type(model)=='nn.DeepMask' then
-  model=nn.Sequential():add(model.trunk):add(model.maskBranch)
+if torch.type(model)=='nn.DeepCrop' then
+  model=model.combinedModel
 end
 model:evaluate()
 
