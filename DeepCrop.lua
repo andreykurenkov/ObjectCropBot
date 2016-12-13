@@ -16,6 +16,7 @@ require 'nn'
 require 'nnx'
 require 'cunn'
 require 'cudnn'
+paths.dofile('SpatialSymmetricPadding.lua')
 local utils = paths.dofile('modelUtils.lua')
 
 local DeepCrop,_ = torch.class('nn.DeepCrop','nn.Container')

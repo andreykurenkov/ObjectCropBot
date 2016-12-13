@@ -12,7 +12,6 @@ require 'cutorch'
 
 paths.dofile('DeepCrop.lua')
 paths.dofile('SharpCrop.lua')
-paths.dofile('SpatialSymmetricPadding.lua')
 
 --------------------------------------------------------------------------------
 -- parse arguments
