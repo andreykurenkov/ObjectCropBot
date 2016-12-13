@@ -23,7 +23,8 @@ cmd:argument('-model', 'model to load')
 cmd:text('Options:')
 cmd:option('-seed', 1, 'Manually set RNG seed')
 cmd:option('-gpu', 1, 'gpu device')
-cmd:option('-testmaxload', 200, 'max number of testing batches')
+cmd:option('-maxload', 5000, 'max number of training batches per epoch')
+cmd:option('-testmaxload', 5000, 'max number of testing batches')
 cmd:option('-save', false, 'save output')
 
 local config = cmd:parse(arg)
@@ -34,7 +35,6 @@ torch.setdefaulttensortype('torch.FloatTensor')
 cutorch.setDevice(config.gpu)
 torch.manualSeed(config.seed)
 math.randomseed(config.seed)
-
 local inputs = torch.CudaTensor()
 
 --------------------------------------------------------------------------------
@@ -71,8 +71,13 @@ end
 --------------------------------------------------------------------------------
 -- initialize data provider and mask meter
 local DataLoader = paths.dofile('DataLoader.lua')
-local _, valLoader = DataLoader.create(config)
-
+local trainLoader, valLoader = DataLoader.create(config)
+local loader
+if config.loadfromtrain then
+  loader = trainLoader
+else
+  loader = valLoader
+end
 paths.dofile('trainMeters.lua')
 local maskmeter = IouMeter(0.5,config.testmaxload*config.batch)
 
@@ -113,41 +118,41 @@ local function saveRes(input,target,output,savedir,n)
   image.save(string.format('%s/%d.jpg',savedir,n),res)
 end
 
---------------------------------------------------------------------------------
+names = {'train','test'}
+limits = {config.maxload,config.testmaxload}
+
+for i,loader in ipairs{trainLoader,valLoader} do
+  --------------------------------------------------------------------------------
 -- start evaluation
-print('| start per batch evaluation')
-maskmeter:reset()
-sys.tic()
-for n, sample in valLoader:run() do
-  xlua.progress(n,config.testmaxload)
+  print(string.format('| start per batch evaluation for %s set',names[i]))
+  sys.tic()
+  maskmeter:reset()
+  for n, sample in loader:run() do
+    xlua.progress(n,config.testmaxload)
+  
+    -- copy input and target to the GPU
+    inputs:resize(sample.inputs:size()):copy(sample.inputs)
 
-  -- copy input and target to the GPU
-  inputs:resize(sample.inputs:size()):copy(sample.inputs)
-
-  -- infer mask in batch
-  local output = model:forward(inputs):float()
-  cutorch.synchronize()
-  output = output:view(sample.labels:size())
-
-  -- compute IoU
-  maskmeter:add(output,sample.labels)
-
-  -- save?
-  if config.save then
-    saveRes(sample.inputs, sample.labels, output, savedir, n)
+    -- infer mask in batch
+    local output = model:forward(inputs):float()
+    cutorch.synchronize()
+    output = output:view(sample.labels:size())
+  
+    -- compute IoU
+    maskmeter:add(output,sample.labels)
+  
+    -- save?
+    if config.save then
+      saveRes(sample.inputs, sample.labels, output, savedir, n)
+     end
+    collectgarbage()
   end
-
-  collectgarbage()
-end
-cutorch.synchronize()
-print('| finish')
 
 --------------------------------------------------------------------------------
 -- log
-print('----------------------------------------------')
-local log = string.format('| model: %s\n',config.model)
-log = log..string.format('| # epochs: %s\n',epoch)
-log = log..string.format(
+print('Results:')
+  
+local log = string.format(
   '| # samples: %d\n'..
   '| samples/s %7d '..
   '| mean %06.2f median %06.2f '..
@@ -156,4 +161,8 @@ log = log..string.format(
   maskmeter:value('mean'),maskmeter:value('median'),
   maskmeter:value('0.5'), maskmeter:value('0.7')
   )
-print(log)
+  print(log)
+  print('----------------------------------------------')
+end
+print('| finish')
+cutorch.synchronize()
