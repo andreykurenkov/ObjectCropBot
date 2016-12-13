@@ -4,27 +4,28 @@ This source code is licensed under the BSD-style license found in the
 LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 
-Per patch evaluation of DeepMask/SharpMask
+Per patch evaluation of DeepCrop/SharpCrop
 ------------------------------------------------------------------------------]]
 
 require 'torch'
 require 'cutorch'
 
-paths.dofile('DeepMask.lua')
-paths.dofile('SharpMask.lua')
+paths.dofile('DeepCrop.lua')
+paths.dofile('SharpCrop.lua')
+paths.dofile('SpatialSymmetricPadding.lua')
 
 --------------------------------------------------------------------------------
 -- parse arguments
 local cmd = torch.CmdLine()
 cmd:text()
-cmd:text('per patch evaluation of DeepMask/SharpMask')
+cmd:text('per patch evaluation of DeepCrop/SharpCrop')
 cmd:text()
 cmd:argument('-model', 'model to load')
 cmd:text('Options:')
 cmd:option('-seed', 1, 'Manually set RNG seed')
 cmd:option('-gpu', 1, 'gpu device')
-cmd:option('-trainmaxload', 5000, 'max number of testing batches')
-cmd:option('-testmaxload', 1000, 'max number of testing batches')
+cmd:option('-maxload', 5000, 'max number of training batches per epoch')
+cmd:option('-testmaxload', 5000, 'max number of testing batches')
 cmd:option('-save', false, 'save output')
 
 local config = cmd:parse(arg)
@@ -35,7 +36,6 @@ torch.setdefaulttensortype('torch.FloatTensor')
 cutorch.setDevice(config.gpu)
 torch.manualSeed(config.seed)
 math.randomseed(config.seed)
-
 local inputs = torch.CudaTensor()
 
 --------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ end
 config.hfreq = 0 -- only evaluate masks
 
 local model = m.model
-if torch.type(model)=='nn.DeepMask' then
+if torch.type(model)=='nn.DeepCrop' then
   model=nn.Sequential():add(model.trunk):add(model.maskBranch)
 end
 model:evaluate()
@@ -72,8 +72,13 @@ end
 --------------------------------------------------------------------------------
 -- initialize data provider and mask meter
 local DataLoader = paths.dofile('DataLoader.lua')
-local testLoader, valLoader = DataLoader.create(config)
-
+local trainLoader, valLoader = DataLoader.create(config)
+local loader
+if config.loadfromtrain then
+  loader = trainLoader
+else
+  loader = valLoader
+end
 paths.dofile('trainMeters.lua')
 local maskmeter = IouMeter(0.5,config.testmaxload*config.batch)
 
@@ -114,16 +119,18 @@ local function saveRes(input,target,output,savedir,n)
   image.save(string.format('%s/%d.jpg',savedir,n),res)
 end
 
---------------------------------------------------------------------------------
--- start evaluation
-print('| start per batch evaluation for val set')
-sys.tic()
 names = {'train','test'}
-for i,loader in ipairs({trainLoader,valLoader}) do
+limits = {config.maxload,config.testmaxload}
+
+for i,loader in ipairs{trainLoader,valLoader} do
+  --------------------------------------------------------------------------------
+-- start evaluation
+  print(string.format('| start per batch evaluation for %s set',names[i]))
+  sys.tic()
   maskmeter:reset()
   for n, sample in loader:run() do
     xlua.progress(n,config.testmaxload)
-
+  
     -- copy input and target to the GPU
     inputs:resize(sample.inputs:size()):copy(sample.inputs)
 
@@ -131,33 +138,32 @@ for i,loader in ipairs({trainLoader,valLoader}) do
     local output = model:forward(inputs):float()
     cutorch.synchronize()
     output = output:view(sample.labels:size())
-
+  
     -- compute IoU
     maskmeter:add(output,sample.labels)
-
+  
     -- save?
     if config.save then
       saveRes(sample.inputs, sample.labels, output, savedir, n)
-    end
-
+     end
     collectgarbage()
   end
-  cutorch.synchronize()
 
 --------------------------------------------------------------------------------
-  -- log
-  print('----------------------------------------------')
-  print('Results for '+names[i]+':')
+-- log
+print('Results:')
   
-  local log = log..string.format(
-    '| # samples: %d\n'..
-    '| samples/s %7d '..
-    '| mean %06.2f median %06.2f '..
-    'iou@.5 %06.2f  iou@.7 %06.2f ',
-    maskmeter.n,config.batch*config.testmaxload/sys.toc(),
-    maskmeter:value('mean'),maskmeter:value('median'),
-    maskmeter:value('0.5'), maskmeter:value('0.7')
-    )
+local log = string.format(
+  '| # samples: %d\n'..
+  '| samples/s %7d '..
+  '| mean %06.2f median %06.2f '..
+  'iou@.5 %06.2f  iou@.7 %06.2f ',
+  maskmeter.n,config.batch*config.testmaxload/sys.toc(),
+  maskmeter:value('mean'),maskmeter:value('median'),
+  maskmeter:value('0.5'), maskmeter:value('0.7')
+  )
   print(log)
+  print('----------------------------------------------')
 end
- print('| finish')
+print('| finish')
+cutorch.synchronize()
