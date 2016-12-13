@@ -27,6 +27,7 @@ cmd:option('-gpu', 1, 'gpu device')
 cmd:option('-maxload', 5000, 'max number of training batches per epoch')
 cmd:option('-testmaxload', 5000, 'max number of testing batches')
 cmd:option('-save', false, 'save output')
+cmd:option('-resnet50', false, 'whether model has resnet50')
 
 local config = cmd:parse(arg)
 
