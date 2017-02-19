@@ -1,0 +1,53 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Object Crop Bot</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="demo/cropperjs/cropper.css">
+  <link rel="stylesheet" href="demo/style.css">
+</head>
+<body>
+  <div id="top" class="centered">
+    <img id="logo" name="logo" src="demo/images/logo.jpg" alt=""/>
+  </div>
+  <hr>
+  <div id="main">
+  <h2 id="bigText" class="centered">A fun lil' thing that crops out objects from an image using AI.</h2>
+	
+  <div id="controls">
+      <div class="container" id="input-container">
+        <img id="cropImg" src="demo/images/img1.jpg" alt="No Image Loaded"/>
+      </div> 
+    <button class="button" style="vertical-align:middle" id="crop-button">
+      <span>Click To Crop That! &raquo&raquo&raquo</span>
+    </button>
+    <div id="out-container">
+      <div class="loader" id="loader"></div>
+      <canvas id="canvas"></canvas>
+    </div>
+
+  </div>
+  <br/>
+
+  <div id="bottom" class="centered">
+    <p id="smallText">Select an image to play with from below, or upload your own:
+	<input type="file" class="upload" onchange="loadImg()" /></p>
+
+    <div class="thumbnails">
+ 	  <img class="thumbnail" id="img1" name="img1" src="demo/images/img1.jpg" alt=""/>
+	  <img class="thumbnail" id="img2" name="img2" src="demo/images/img2.jpg" alt=""/>
+	  <img class="thumbnail" id="img3" name="img3" src="demo/images/img3.jpg" alt=""/>
+	  <img class="thumbnail" id="img4" name="img4" src="demo/images/img4.jpg" alt=""/>
+	  <img class="thumbnail" id="img5" name="img5" src="demo/images/img5.jpg" alt=""/>
+    </div>
+  </div>
+  
+  <img id="out_img" src="demo/images/out.png" width="0" height="0" alt="Move along..."/>
+  <hr>
+  <p align="center">Brought to you by the <a href="www.andreykurenkov.com">Andrey Kurenkov</a>. Built at TreeHacks, Stanford (mostly over one sleepeless night). Cropping AI "DeepMask" <a href="https://github.com/facebookresearch/deepmask">entirely by Facebook</a>. Code on <a href="https://github.com/andreykurenkov/deepmask/tree/deepmask-patch">Github</a></p>
+  <script src="demo/cropperjs/cropper.js"></script>
+  <script src="demo/control.js"></script>
+
+</body>
+</html>
