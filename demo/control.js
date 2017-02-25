@@ -14,7 +14,7 @@ window.addEventListener('DOMContentLoaded', function () {
         window.alert("Cropping functionality offline :(. Give me free AWS credits?");
         console.log(":(");
       },
-      timeout: 2000
+      timeout: 5000
   });
   var first = true;
   var canvas = document.getElementById('canvas');
