@@ -12,9 +12,9 @@ window.addEventListener('DOMContentLoaded', function () {
         online = false;
         button.disabled = true;
         window.alert("Cropping functionality offline :(. Give me free AWS credits?");
-        console.log("yeah");
+        console.log(":(");
       },
-      timeout: 500
+      timeout: 2000
   });
   var first = true;
   var canvas = document.getElementById('canvas');
