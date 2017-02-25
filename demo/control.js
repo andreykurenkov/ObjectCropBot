@@ -1,7 +1,21 @@
 var image;
 var cropper;
-window.addEventListener('DOMContentLoaded', function () {
- 
+var online = true;
+window.addEventListener('DOMContentLoaded', function () { 
+  var button = document.getElementById('crop-button'); 
+  $.ajax({
+      url: "http://ec2-54-219-178-149.us-west-1.compute.amazonaws.com:5000",
+      success: function (response) { 
+        button.disabled = false;
+      },
+      error: function (xhr, ajaxOptions, thrownError) { 
+        online = false;
+        button.disabled = true;
+        window.alert("Cropping functionality offline :(. Give me free AWS credits?");
+        console.log("yeah");
+      },
+      timeout: 500
+  });
   var first = true;
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext("2d");
@@ -33,8 +47,6 @@ window.addEventListener('DOMContentLoaded', function () {
 
   var dc_url = 'http://ec2-54-219-178-149.us-west-1.compute.amazonaws.com:5000';
   var loader = document.getElementById('loader');
-  var button = document.getElementById('crop-button'); 
-  button.disabled = false;
   $("#crop-button").click(function(event){
     if(!button.disabled){
       button.disabled = true;
